@@ -9,69 +9,11 @@ from reportlab.lib.units import inch
 from datetime import datetime
 import json
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 
 app = Flask(__name__)
 CORS(app)
 
 USAGE_FILE = 'usage.json'
-
-# Email configuration
-EMAIL_ADDRESS = "vettifyprecheck@gmail.com"
-EMAIL_PASSWORD = "Isefbuqadsreulbb"
-
-def send_pdf_via_email(to_email, pdf_buffer, client_age):
-    """Send PDF as email attachment"""
-    try:
-        print(f"Attempting to send email to {to_email}")
-        
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_ADDRESS
-        msg['To'] = to_email
-        msg['Subject'] = f"Vettify PreCheck - Assessment Report (Age {client_age})"
-        
-        body = f"""
-Dear Broker,
-
-Attached is your Vettify PreCheck assessment report.
-
-Report Details:
-• Generated: {datetime.now().strftime('%d %B %Y at %H:%M')}
-• Client Age: {client_age}
-
-This is a professional pre-screening report you can share with your client.
-
-Remember: This is a pre-screening estimate only, not a binding quote.
-
----
-Vettify PreCheck
-Professional pre-underwriting for insurance brokers
-vettifyprecheck.com
-"""
-        
-        msg.attach(MIMEText(body, 'plain'))
-        
-        pdf_buffer.seek(0)
-        attachment = MIMEBase('application', 'octet-stream')
-        attachment.set_payload(pdf_buffer.read())
-        encoders.encode_base64(attachment)
-        attachment.add_header('Content-Disposition', f'attachment; filename=vettify_precheck_{client_age}.pdf')
-        msg.attach(attachment)
-        
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        
-        print(f"Email sent successfully to {to_email}")
-        return True
-    except Exception as e:
-        print(f"Email error: {str(e)}")
-        return False
 
 def load_usage():
     if os.path.exists(USAGE_FILE):
@@ -318,19 +260,19 @@ def home():
                         
                         <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10 years</option><option value="15">15 years</option><option value="20">20 years</option><option value="25">25 years</option><option value="30">30 years</option><option value="custom">Custom term</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display: none;" min="1" max="50"></div><small>1-50 years</small></div>
                         
-                        <div class="form-group"><label>Your Email Address (PDF will be sent here)</label><input type="email" id="broker_email" required placeholder="broker@example.com"><small>Free for 20 assessments · Professional PDF delivered to your inbox</small></div>
+                        <div class="form-group"><label>Your Email (to track free assessments)</label><input type="email" id="broker_email" required placeholder="broker@example.com"><small>Free for 20 assessments · No spam · PDF downloads instantly</small></div>
                         
-                        <button type="submit" class="btn-primary" id="generateBtn">Generate & Send Report →</button>
+                        <button type="submit" class="btn-primary" id="generateBtn">Generate Report →</button>
                     </form>
-                    <div class="loading" id="loading">⏳ Generating and emailing your report...</div>
+                    <div class="loading" id="loading">⏳ Generating your professional report...</div>
                     <div class="error" id="error"></div>
                     <div class="success" id="success"></div>
                 </div>
             </div>
             <div class="info-card">
                 <div class="info-section"><h3>📊 Methodology</h3><p>Powered by established mortality models and industry-standard loadings.</p><div class="pill">Actuarial Framework</div></div>
-                <div class="info-section"><h3>✓ What You Receive</h3><div class="trust-list"><div class="trust-item">📊 Risk Score (0-100 scale)</div><div class="trust-item">🏷️ Risk Classification (Low/Moderate/High)</div><div class="trust-item">💰 Premium Range estimate (ZAR)</div><div class="trust-item">🔬 Factor Breakdown</div><div class="trust-item">📧 PDF sent directly to your email</div></div></div>
-                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ 20 free assessments</div><div class="trust-item">✅ PDF delivered to your inbox</div><div class="trust-item">✅ South African focused</div></div></div>
+                <div class="info-section"><h3>✓ What You Receive</h3><div class="trust-list"><div class="trust-item">📊 Risk Score (0-100 scale)</div><div class="trust-item">🏷️ Risk Classification (Low/Moderate/High)</div><div class="trust-item">💰 Premium Range estimate (ZAR)</div><div class="trust-item">🔬 Factor Breakdown</div><div class="trust-item">📄 Instant PDF download</div></div></div>
+                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ 20 free assessments</div><div class="trust-item">✅ Instant PDF download</div><div class="trust-item">✅ South African focused</div></div></div>
                 <div class="risk-preview"><span style="font-size: 12px; color: #5b6e8c;">Sample Output</span><div class="risk-score-large">85<span style="font-size: 20px;">/100</span></div><div class="gauge-preview">████████░░</div><div><span class="pill">LOW RISK</span></div></div>
                 <div class="identity"><p>Built using established mortality models</p><p>© 2026 Vettify · Independent pre-screening tool</p></div>
             </div>
@@ -347,8 +289,13 @@ def home():
             
             document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
                 const brokerEmail = document.getElementById('broker_email').value.trim();
-                if (!brokerEmail) { document.getElementById('error').textContent = 'Please enter your email address'; document.getElementById('error').style.display = 'block'; return; }
+                if (!brokerEmail) { 
+                    document.getElementById('error').textContent = 'Please enter your email address'; 
+                    document.getElementById('error').style.display = 'block'; 
+                    return; 
+                }
                 
                 const generateBtn = document.getElementById('generateBtn');
                 const loadingDiv = document.getElementById('loading');
@@ -359,7 +306,7 @@ def home():
                 loadingDiv.style.display = 'block';
                 errorDiv.style.display = 'none';
                 successDiv.style.display = 'none';
-                generateBtn.textContent = 'Generating & Sending...';
+                generateBtn.textContent = 'Generating...';
                 
                 let coverageAmount; 
                 if (coveragePreset.value === 'custom') { 
@@ -369,7 +316,7 @@ def home():
                         errorDiv.style.display = 'block'; 
                         generateBtn.disabled = false; 
                         loadingDiv.style.display = 'none'; 
-                        generateBtn.textContent = 'Generate & Send Report →'; 
+                        generateBtn.textContent = 'Generate Report →'; 
                         return; 
                     } 
                 } else { 
@@ -384,7 +331,7 @@ def home():
                         errorDiv.style.display = 'block'; 
                         generateBtn.disabled = false; 
                         loadingDiv.style.display = 'none'; 
-                        generateBtn.textContent = 'Generate & Send Report →'; 
+                        generateBtn.textContent = 'Generate Report →'; 
                         return; 
                     } 
                 } else { 
@@ -397,7 +344,7 @@ def home():
                     errorDiv.style.display = 'block'; 
                     generateBtn.disabled = false; 
                     loadingDiv.style.display = 'none'; 
-                    generateBtn.textContent = 'Generate & Send Report →'; 
+                    generateBtn.textContent = 'Generate Report →'; 
                     return; 
                 }
                 
@@ -407,7 +354,7 @@ def home():
                     errorDiv.style.display = 'block'; 
                     generateBtn.disabled = false; 
                     loadingDiv.style.display = 'none'; 
-                    generateBtn.textContent = 'Generate & Send Report →'; 
+                    generateBtn.textContent = 'Generate Report →'; 
                     return; 
                 }
                 
@@ -422,12 +369,47 @@ def home():
                 };
                 
                 try {
-                    const response = await fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-                    const result = await response.json();
-                    if (!response.ok) { errorDiv.textContent = result.error || 'Failed to generate report'; errorDiv.style.display = 'block'; generateBtn.disabled = false; loadingDiv.style.display = 'none'; generateBtn.textContent = 'Generate & Send Report →'; return; }
-                    generateBtn.disabled = false; loadingDiv.style.display = 'none'; successDiv.innerHTML = result.message; successDiv.style.display = 'block'; generateBtn.textContent = 'Generate & Send Report →';
+                    const response = await fetch('/generate', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(formData) 
+                    });
+                    
+                    if (!response.ok) {
+                        const result = await response.json();
+                        errorDiv.textContent = result.error || 'Failed to generate report';
+                        errorDiv.style.display = 'block';
+                        generateBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
+                        generateBtn.textContent = 'Generate Report →';
+                        return;
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `vettify_precheck_${age}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    
+                    generateBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                    successDiv.innerHTML = '✅ Report generated successfully! Check your downloads folder.';
+                    successDiv.style.display = 'block';
+                    generateBtn.textContent = 'Generate Report →';
+                    
                     setTimeout(() => { successDiv.style.display = 'none'; }, 5000);
-                } catch (error) { errorDiv.textContent = 'Error generating report. Please try again.'; errorDiv.style.display = 'block'; generateBtn.disabled = false; loadingDiv.style.display = 'none'; generateBtn.textContent = 'Generate & Send Report →'; }
+                    
+                } catch (error) {
+                    errorDiv.textContent = 'Error generating report. Please try again.';
+                    errorDiv.style.display = 'block';
+                    generateBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                    generateBtn.textContent = 'Generate Report →';
+                }
             });
         </script>
     </body>
@@ -455,17 +437,14 @@ def generate():
         is_paid = load_usage().get(user_key, {}).get('plan') != 'free'
         pdf_buffer = generate_pdf(data, count + 1, is_paid)
         
-        email_sent = send_pdf_via_email(broker_email, pdf_buffer, data['age'])
-        
-        if not email_sent:
-            return jsonify({'error': 'Failed to send email. Please try again.'}), 500
-        
         increment_usage(user_key)
         
-        return jsonify({
-            'success': True,
-            'message': f'✅ Assessment report sent to {broker_email}! Check your inbox.'
-        })
+        return send_file(
+            pdf_buffer, 
+            mimetype='application/pdf', 
+            as_attachment=True, 
+            download_name=f'vettify_precheck_{data["age"]}.pdf'
+        )
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
