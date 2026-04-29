@@ -24,14 +24,6 @@ USAGE_FILE = 'usage.json'
 EMAIL_ADDRESS = "vettifyprecheck@gmail.com"
 EMAIL_PASSWORD = "Isefbuqadsreulbb"
 
-# Currency symbols and exchange rates (for display only)
-CURRENCIES = {
-    'ZAR': {'symbol': 'R', 'name': 'South African Rand', 'rate': 1.0},
-    'USD': {'symbol': '$', 'name': 'US Dollar', 'rate': 0.054},
-    'EUR': {'symbol': '€', 'name': 'Euro', 'rate': 0.050},
-    'GBP': {'symbol': '£', 'name': 'British Pound', 'rate': 0.043}
-}
-
 def send_pdf_via_email(to_email, pdf_buffer, client_age):
     """Send PDF as email attachment"""
     try:
@@ -121,7 +113,7 @@ def check_limit(user_key):
             return False, user_data['pdf_count']
     return True, usage.get(user_key, {}).get('pdf_count', 0)
 
-def calculate_premium(age, gender, smoker, income_band, coverage_amount, term_years, currency):
+def calculate_premium(age, gender, smoker, income_band, coverage_amount, term_years):
     if age < 30:
         base_rate = 120
     elif age < 40:
@@ -145,11 +137,7 @@ def calculate_premium(age, gender, smoker, income_band, coverage_amount, term_ye
     if term_years > 20:
         premium *= 1.1
     
-    # Convert to selected currency
-    rate = CURRENCIES.get(currency, {'rate': 1.0})['rate']
-    premium = round(premium * rate, 2)
-    
-    return premium
+    return round(premium, 2)
 
 def determine_risk_level(age, smoker, coverage_amount, income_band):
     risk_score = 0
@@ -182,11 +170,9 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story = []
     
     vettify_blue = colors.HexColor('#0a2540')
-    currency = data.get('currency', 'ZAR')
-    currency_symbol = CURRENCIES.get(currency, {'symbol': 'R'})['symbol']
     
     risk_level, risk_comment, risk_score, risk_color_hex = determine_risk_level(data['age'], data['smoker'], data['coverage_amount'], data['income_band'])
-    premium = calculate_premium(data['age'], data['gender'], data['smoker'], data['income_band'], data['coverage_amount'], data['term_years'], currency)
+    premium = calculate_premium(data['age'], data['gender'], data['smoker'], data['income_band'], data['coverage_amount'], data['term_years'])
     risk_color = colors.HexColor(risk_color_hex)
     
     title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=28, textColor=vettify_blue, alignment=1, spaceAfter=6)
@@ -195,7 +181,6 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story.append(Spacer(1, 0.2*inch))
     
     story.append(Paragraph(f"Generated: {datetime.now().strftime('%d %B %Y at %H:%M')}", styles['Normal']))
-    story.append(Paragraph(f"Currency: {currency} ({currency_symbol})", styles['Normal']))
     story.append(Spacer(1, 0.2*inch))
     
     story.append(Paragraph("RISK SCORE", styles['Heading2']))
@@ -211,8 +196,8 @@ def generate_pdf(data, pdf_count, is_paid=False):
         ["Age", str(data['age']) + " years"],
         ["Gender", data['gender'].capitalize()],
         ["Smoker", "Yes" if data['smoker'] else "No"],
-        ["Annual Income", f"{currency_symbol}{data['income_band']:,}"],
-        ["Coverage", f"{currency_symbol}{data['coverage_amount']:,}"],
+        ["Annual Income", f"R{data['income_band']:,}"],
+        ["Coverage", f"R{data['coverage_amount']:,}"],
         ["Term", f"{data['term_years']} years"],
     ]
     info_table = Table(info_data, colWidths=[1.8*inch, 3.2*inch])
@@ -221,7 +206,7 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story.append(Spacer(1, 0.2*inch))
     
     story.append(Paragraph("PREMIUM ESTIMATE", styles['Heading2']))
-    story.append(Paragraph(f"{currency_symbol}{premium} - {currency_symbol}{premium + 150} per month", styles['Normal']))
+    story.append(Paragraph(f"R{premium} - R{premium + 150} per month", styles['Normal']))
     story.append(Paragraph("Illustrative indication only - subject to full underwriting", styles['Italic']))
     story.append(Spacer(1, 0.2*inch))
     
@@ -326,11 +311,10 @@ def home():
                         <div class="form-group"><label>Smoker Status</label><div class="radio-group"><label><input type="radio" name="smoker" value="yes" required> Yes</label><label><input type="radio" name="smoker" value="no" required> No</label></div></div>
                         
                         <div class="row-group">
-                            <div class="form-group"><label>Currency</label><select id="currency" required><option value="ZAR">R ZAR - South African Rand</option><option value="USD">$ USD - US Dollar</option><option value="EUR">€ EUR - Euro</option><option value="GBP">£ GBP - British Pound</option></select><small>Select your preferred currency</small></div>
-                            <div class="form-group"><label>Annual Income</label><input type="number" id="income" required placeholder="e.g., 500000"><small>In selected currency</small></div>
+                            <div class="form-group"><label>Annual Income (ZAR)</label><input type="number" id="income" required placeholder="e.g., 500000"><small>South African Rand</small></div>
                         </div>
                         
-                        <div class="form-group"><label>Coverage Amount</label><div class="inline-group"><select id="coverage_preset"><option value="500000">500,000</option><option value="1000000">1,000,000</option><option value="2000000">2,000,000</option><option value="3000000">3,000,000</option><option value="5000000">5,000,000</option><option value="10000000">10,000,000</option><option value="custom">Custom amount</option></select><input type="number" id="coverage_custom" placeholder="Enter amount" style="display: none;" min="50000"></div><small>In selected currency · Minimum 50,000</small></div>
+                        <div class="form-group"><label>Coverage Amount (ZAR)</label><div class="inline-group"><select id="coverage_preset"><option value="500000">R500,000</option><option value="1000000">R1,000,000</option><option value="2000000">R2,000,000</option><option value="3000000">R3,000,000</option><option value="5000000">R5,000,000</option><option value="10000000">R10,000,000</option><option value="custom">Custom amount</option></select><input type="number" id="coverage_custom" placeholder="Enter amount" style="display: none;" min="50000"></div><small>Minimum R50,000</small></div>
                         
                         <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10 years</option><option value="15">15 years</option><option value="20">20 years</option><option value="25">25 years</option><option value="30">30 years</option><option value="custom">Custom term</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display: none;" min="1" max="50"></div><small>1-50 years</small></div>
                         
@@ -345,8 +329,8 @@ def home():
             </div>
             <div class="info-card">
                 <div class="info-section"><h3>📊 Methodology</h3><p>Powered by established mortality models and industry-standard loadings.</p><div class="pill">Actuarial Framework</div></div>
-                <div class="info-section"><h3>✓ What You Receive</h3><div class="trust-list"><div class="trust-item">📊 Risk Score (0-100 scale)</div><div class="trust-item">🏷️ Risk Classification (Low/Moderate/High)</div><div class="trust-item">💰 Premium Range estimate</div><div class="trust-item">🔬 Factor Breakdown</div><div class="trust-item">🌍 Multi-currency support (ZAR/USD/EUR/GBP)</div><div class="trust-item">📧 PDF sent directly to your email</div></div></div>
-                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ 20 free assessments</div><div class="trust-item">✅ PDF delivered to your inbox</div><div class="trust-item">✅ Multi-currency support</div></div></div>
+                <div class="info-section"><h3>✓ What You Receive</h3><div class="trust-list"><div class="trust-item">📊 Risk Score (0-100 scale)</div><div class="trust-item">🏷️ Risk Classification (Low/Moderate/High)</div><div class="trust-item">💰 Premium Range estimate (ZAR)</div><div class="trust-item">🔬 Factor Breakdown</div><div class="trust-item">📧 PDF sent directly to your email</div></div></div>
+                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ 20 free assessments</div><div class="trust-item">✅ PDF delivered to your inbox</div><div class="trust-item">✅ South African focused</div></div></div>
                 <div class="risk-preview"><span style="font-size: 12px; color: #5b6e8c;">Sample Output</span><div class="risk-score-large">85<span style="font-size: 20px;">/100</span></div><div class="gauge-preview">████████░░</div><div><span class="pill">LOW RISK</span></div></div>
                 <div class="identity"><p>Built using established mortality models</p><p>© 2026 Vettify · Independent pre-screening tool</p></div>
             </div>
@@ -381,7 +365,7 @@ def home():
                 if (coveragePreset.value === 'custom') { 
                     coverageAmount = parseInt(coverageCustom.value); 
                     if (isNaN(coverageAmount) || coverageAmount < 50000) { 
-                        errorDiv.textContent = 'Please enter a valid coverage amount (minimum 50,000)'; 
+                        errorDiv.textContent = 'Please enter a valid coverage amount (minimum R50,000)'; 
                         errorDiv.style.display = 'block'; 
                         generateBtn.disabled = false; 
                         loadingDiv.style.display = 'none'; 
@@ -434,7 +418,6 @@ def home():
                     income_band: income, 
                     coverage_amount: coverageAmount, 
                     term_years: termYears, 
-                    currency: document.getElementById('currency').value,
                     broker_email: brokerEmail 
                 };
                 
@@ -478,8 +461,6 @@ def generate():
             return jsonify({'error': 'Failed to send email. Please try again.'}), 500
         
         increment_usage(user_key)
-        
-        currency_symbol = CURRENCIES.get(data.get('currency', 'ZAR'), {'symbol': 'R'})['symbol']
         
         return jsonify({
             'success': True,
