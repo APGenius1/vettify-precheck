@@ -3,7 +3,7 @@ from flask_cors import CORS
 import io
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from datetime import datetime, timedelta
@@ -29,19 +29,6 @@ def init_db():
         paid BOOLEAN DEFAULT 0,
         first_use TEXT
     )""")
-    conn.execute("""CREATE TABLE IF NOT EXISTS leads (
-        id TEXT PRIMARY KEY,
-        email TEXT,
-        age INTEGER,
-        gender TEXT,
-        smoker BOOLEAN,
-        income REAL,
-        coverage REAL,
-        term INTEGER,
-        premium REAL,
-        risk_score INTEGER,
-        timestamp TEXT
-    )""")
     conn.commit()
     conn.close()
 
@@ -65,21 +52,19 @@ def qx(age, smoker):
 def epv_benefit(cov, age, term, smoker):
     v = 1 / (1 + 0.06 / 12)
     epv, surv = 0, 1
-    for m in range(1, term * 12 + 1):
-        a = age + (m - 1)//12
-        q = qx(a, smoker)
-        epv += (v**m) * surv * q * cov
-        surv *= (1 - q)
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** (m+1)) * surv * qx(a, smoker) * cov
+        surv *= (1 - qx(a, smoker))
     return epv
 
 def epv_prem(age, term, smoker):
     v = 1 / (1 + 0.06 / 12)
     epv, surv = 0, 1
-    for m in range(1, term * 12 + 1):
-        a = age + (m - 1)//12
-        q = qx(a, smoker)
-        epv += (v**(m-1)) * surv
-        surv *= (1 - q)
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** m) * surv
+        surv *= (1 - qx(a, smoker))
     return epv
 
 def premium_calc(age, gender, smoker, income, coverage, term):
@@ -94,67 +79,41 @@ def premium_calc(age, gender, smoker, income, coverage, term):
 
     return max(80, min(15000, round(p)))
 
-# ================= SALES-OPTIMISED UNDERWRITING ENGINE =================
-def underwriting_engine(age, smoker, coverage, income, term, premium):
-    ratio = coverage / income if income else 10
-
-    score = 70
-    urgency = "Low"
-    convertibility = 70
-    hook = []
-    verdict = ""
-
-    # Age layer
-    if age > 60:
-        score -= 20
-        convertibility -= 15
-        hook.append("Age-driven underwriting tightening likely")
-    elif age > 45:
-        score -= 10
-
-    # Smoker layer
-    if smoker:
-        score -= 30
-        convertibility -= 25
-        urgency = "High"
-        hook.append("Smoker load may materially increase premium")
-
-    # Financial strain signal
-    if ratio > 8:
-        score -= 15
-        convertibility -= 20
-        urgency = "High"
-        hook.append("Coverage exceeds affordability norms")
-
-    # Term risk
-    if term > 25:
-        score -= 5
-
-    # Final classification
-    score = max(10, min(95, score))
-
+# ================= SHARPER UNDERWRITING ENGINE =================
+def risk_explanation(score):
     if score >= 70:
-        verdict = "Highly Insurable – Standard market acceptance expected"
+        return "Strong profile: standard mortality, minimal underwriting friction, likely straight-through approval."
     elif score >= 40:
-        verdict = "Moderate Insurability – Some underwriting friction expected"
-    else:
-        verdict = "High Friction – Specialist underwriting likely required"
+        return "Moderate profile: expect underwriting questions and possible loadings."
+    return "High-risk profile: specialist underwriting required, possible medical evidence."
 
-    # Sales CTA logic
-    if convertibility >= 75:
-        cta = "Strong conversion probability. Proceed immediately."
-    elif convertibility >= 50:
-        cta = "Good candidate. Pre-underwrite before submission."
-    else:
-        cta = "High decline risk. Re-structure cover before applying."
+def insurer_match(score, smoker):
+    if smoker:
+        return ["Momentum", "BrightRock"], "Smoker pricing applies; specialist underwriting required."
+    if score >= 70:
+        return ["Discovery", "Momentum", "Old Mutual", "Sanlam"], "Top-tier underwriting bands."
+    if score >= 40:
+        return ["Old Mutual", "Momentum"], "Standard underwriting expected."
+    return ["Hollard", "BrightRock"], "Restricted underwriting pool."
+
+def underwriting_summary(premium, risk, age, coverage, income):
+    ratio = coverage / income if income else 0
 
     return {
-        "score": score,
-        "convertibility": convertibility,
-        "urgency": urgency,
-        "verdict": verdict,
-        "cta": cta,
-        "hooks": hook
+        "risk_score": risk["score"],
+        "risk_level": risk["level"],
+        "risk_explanation": risk_explanation(risk["score"]),
+        "premium": premium,
+        "confidence_range": {
+            "low": int(premium * 0.88),
+            "high": int(premium * 1.12),
+            "confidence": "±12%"
+        },
+        "coverage_ratio": f"{round(ratio, 1)}x income",
+        "coverage_interpretation":
+            "Within norms" if ratio <= 4 else
+            "Elevated risk" if ratio <= 8 else
+            "High strain loading expected"
     }
 
 # ================= RISK ENGINE =================
@@ -182,93 +141,18 @@ def risk_score(age, smoker, coverage, income, term):
 
     level = "Low" if score >= 70 else "Moderate" if score >= 40 else "High"
 
-    return {
-        "score": score,
-        "level": level,
-        "drivers": drivers
-    }
+    return {"score": score, "level": level, "drivers": drivers}
 
 # ================= MARKET =================
 def market(premium, age):
-    pct = 45 if age < 30 else 55 if age < 45 else 48
     return {
         "min": round(premium * 0.88),
         "max": round(premium * 1.12),
-        "percentile": pct,
+        "percentile": 45 if age < 30 else 55 if age < 45 else 48,
         "confidence": 12
     }
 
-def insurers(score, smoker):
-    if smoker:
-        return ["Momentum", "BrightRock"], "Smoker specialist pathways recommended"
-    if score >= 70:
-        return ["Discovery", "Old Mutual", "Momentum"], "Top-tier underwriting bands"
-    return ["Old Mutual", "Hollard"], "Standard/specialist mix recommended"
-
-# ================= PDF ENGINE (UPGRADED SALES VERSION) =================
-def generate_pdf(data, premium, risk, market_data, underwrite, insurer_list, insurer_note):
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = []
-
-    blue = colors.HexColor("#0a2540")
-    risk_color = colors.green if risk["score"] > 70 else colors.orange if risk["score"] > 40 else colors.red
-
-    report_id = str(uuid.uuid4())[:8]
-
-    # HEADER
-    story.append(Paragraph("VETTIFY PRECHECK", ParagraphStyle("t", fontSize=26, textColor=blue, alignment=1)))
-    story.append(Paragraph("Actuarial + Sales Intelligence Report", styles["Normal"]))
-    story.append(Spacer(1, 0.2*inch))
-
-    story.append(Paragraph(f"<b>Report ID:</b> {report_id}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Valid:</b> 7 days", styles["Normal"]))
-    story.append(Spacer(1, 0.2*inch))
-
-    # EXEC SUMMARY (SALES CORE)
-    story.append(Paragraph("EXECUTIVE SUMMARY", styles["Heading2"]))
-    story.append(Paragraph(
-        f"Insurability Verdict: <b>{underwrite['verdict']}</b><br/>"
-        f"Conversion Outlook: <b>{underwrite['cta']}</b>",
-        styles["Normal"]
-    ))
-    story.append(Spacer(1, 0.15*inch))
-
-    # RISK SCORE
-    story.append(Paragraph("RISK SCORE", styles["Heading2"]))
-    story.append(Paragraph(
-        f"<font size=48><b>{risk['score']}</b></font>/100",
-        ParagraphStyle("r", alignment=1, textColor=risk_color)
-    ))
-    story.append(Paragraph(risk["level"], styles["Normal"]))
-    story.append(Spacer(1, 0.2*inch))
-
-    # PREMIUM
-    story.append(Paragraph("PREMIUM ESTIMATE", styles["Heading2"]))
-    story.append(Paragraph(f"<b>R{premium}/month</b>", styles["Normal"]))
-    story.append(Paragraph(f"Market Range: R{market_data['min']} - R{market_data['max']}", styles["Normal"]))
-    story.append(Spacer(1, 0.2*inch))
-
-    # SALES INTELLIGENCE BLOCK
-    story.append(Paragraph("SALES INTELLIGENCE", styles["Heading2"]))
-    for h in underwrite["hooks"]:
-        story.append(Paragraph(f"• {h}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Urgency:</b> {underwrite['urgency']}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Convertibility Score:</b> {underwrite['convertibility']}/100", styles["Normal"]))
-    story.append(Spacer(1, 0.2*inch))
-
-    # INSURERS
-    story.append(Paragraph("INSURER MATCHING", styles["Heading2"]))
-    story.append(Paragraph(", ".join(insurer_list), styles["Normal"]))
-    story.append(Paragraph(insurer_note, styles["Normal"]))
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
-
-# ================= ROUTES =================
+# ================= API =================
 @app.route("/calculate", methods=["POST"])
 def calculate():
     d = request.json
@@ -276,16 +160,16 @@ def calculate():
     prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
     risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
     market_data = market(prem, d["age"])
-    insurers_list, note = insurers(risk["score"], d["smoker"])
-    underwrite = underwriting_engine(d["age"], d["smoker"], d["coverage"], d["income"], d["term"], prem)
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
 
     return jsonify({
         "premium": prem,
         "risk": risk,
         "market": market_data,
-        "insurers": insurers_list,
-        "note": note,
-        "underwriting": underwrite
+        "insurers": insurers,
+        "insurer_note": note,
+        "underwriting": under
     })
 
 @app.route("/generate-report", methods=["POST"])
@@ -295,12 +179,39 @@ def report():
     prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
     risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
     market_data = market(prem, d["age"])
-    insurers_list, note = insurers(risk["score"], d["smoker"])
-    underwrite = underwriting_engine(d["age"], d["smoker"], d["coverage"], d["income"], d["term"], prem)
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
 
-    pdf = generate_pdf(d, prem, risk, market_data, underwrite, insurers_list, note)
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
 
-    return send_file(pdf, as_attachment=True, download_name="vettify_report.pdf")
+    story.append(Paragraph("VETTIFY UNDERWRITING REPORT", styles["Heading1"]))
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph(f"<b>Risk:</b> {under['risk_score']} / 100", styles["Normal"]))
+    story.append(Paragraph(f"<b>Insight:</b> {under['risk_explanation']}", styles["Normal"]))
+    story.append(Spacer(1, 0.1*inch))
+
+    story.append(Paragraph(f"<b>Premium:</b> R{prem}", styles["Normal"]))
+    story.append(Paragraph(
+        f"Range: R{under['confidence_range']['low']} – R{under['confidence_range']['high']} ({under['confidence_range']['confidence']})",
+        styles["Normal"]
+    ))
+    story.append(Spacer(1, 0.1*inch))
+
+    story.append(Paragraph(f"<b>Coverage Ratio:</b> {under['coverage_ratio']}", styles["Normal"]))
+    story.append(Paragraph(under["coverage_interpretation"], styles["Normal"]))
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph("<b>Insurers:</b> " + ", ".join(insurers), styles["Normal"]))
+    story.append(Paragraph(note, styles["Normal"]))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    return send_file(buffer, as_attachment=True, download_name="vettify_report.pdf")
 
 # ================= RUN =================
 if __name__ == "__main__":
