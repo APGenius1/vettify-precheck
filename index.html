@@ -1,28 +1,101 @@
+
+from flask import Flask, request, jsonify, send_file, render_template_string
+from flask_cors import CORS
+import io
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from datetime import datetime, timedelta
+import os, uuid, math, sqlite3
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24).hex()
+CORS(app)
+
+DATABASE = "vettify.db"
+
+# ================= DB =================
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS usage (
+        email TEXT PRIMARY KEY,
+        count INTEGER DEFAULT 0,
+        paid BOOLEAN DEFAULT 0,
+        first_use TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ================= ACTUARIAL CORE =================
+G_A, G_B, G_C = 0.00022, 0.000027, 0.092
+
+def force_mortality(age):
+    return G_A + G_B * math.exp(G_C * age)
+
+def smoker_mult(age):
+    return 2.5 if age < 30 else 2.2 if age < 40 else 1.9 if age < 50 else 1.6 if age < 60 else 1.4
+
+def qx(age, smoker):
+    mu = force_mortality(age)
+    if smoker:
+        mu *= smoker_mult(age)
+    return 1 - math.exp(-mu / 12)
+
+def epv_benefit(cov, age, term, smoker):
+    v = 1 / (1 + 0.06 / 12)
+    epv, surv = 0, 1
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** (m+1)) * surv * qx(a, smoker) * cov
+        surv *= (1 - qx(a, smoker))
+    return epv
+
+def epv_prem(age, term, smoker):
+    v = 1 / (1 + 0.06 / 12)
+    epv, surv = 0, 1
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** m) * surv
+        surv *= (1 - qx(a, smoker))
+    return epv
+
+def premium_calc(age, gender, smoker, income, coverage, term):
+    p = epv_benefit(coverage, age, term, smoker) / max(epv_prem(age, term, smoker), 1)
+
+    if gender == "male":
+        p *= 1.12
+
+    ratio = coverage / income if income else 10
+    if ratio > 4:
+        p *= 1 + min(0.6, (ratio - 4) * 0.1)
+
+    return max(80, min(15000, round(p)))
+
+# ================= SHARPER UNDERWRITING ENGINE =================
 def risk_explanation(score):
     if score >= 70:
         return "Strong profile: standard mortality, minimal underwriting friction, likely straight-through approval."
     elif score >= 40:
-        return "Moderate profile: expect underwriting questions and possible loadings depending on insurer."
-    else:
-        return "High-risk profile: specialist underwriting required, possible medical evidence or exclusions."
-
+        return "Moderate profile: expect underwriting questions and possible loadings."
+    return "High-risk profile: specialist underwriting required, possible medical evidence."
 
 def insurer_match(score, smoker):
     if smoker:
-        insurers = ["Momentum", "BrightRock"]
-        explanation = "Smoker pricing applied; specialist-friendly underwriting required."
-    elif score >= 70:
-        insurers = ["Discovery", "Momentum", "Old Mutual", "Sanlam"]
-        explanation = "Eligible for top-tier underwriting bands and preferred rates."
-    elif score >= 40:
-        insurers = ["Old Mutual", "Momentum"]
-        explanation = "Standard market underwriting expected with minor review."
-    else:
-        insurers = ["Hollard", "BrightRock"]
-        explanation = "Restricted underwriting pool due to elevated risk."
-    
-    return insurers, explanation
-
+        return ["Momentum", "BrightRock"], "Smoker pricing applies; specialist underwriting required."
+    if score >= 70:
+        return ["Discovery", "Momentum", "Old Mutual", "Sanlam"], "Top-tier underwriting bands."
+    if score >= 40:
+        return ["Old Mutual", "Momentum"], "Standard underwriting expected."
+    return ["Hollard", "BrightRock"], "Restricted underwriting pool."
 
 def underwriting_summary(premium, risk, age, coverage, income):
     ratio = coverage / income if income else 0
@@ -38,9 +111,109 @@ def underwriting_summary(premium, risk, age, coverage, income):
             "confidence": "±12%"
         },
         "coverage_ratio": f"{round(ratio, 1)}x income",
-        "coverage_interpretation": (
-            "Within underwriting norms" if ratio <= 4 else
-            "Elevated — may trigger review" if ratio <= 8 else
-            "High strain — likely loading"
-        )
+        "coverage_interpretation":
+            "Within norms" if ratio <= 4 else
+            "Elevated risk" if ratio <= 8 else
+            "High strain loading expected"
     }
+
+# ================= RISK ENGINE =================
+def risk_score(age, smoker, coverage, income, term):
+    score = 70
+    drivers = []
+
+    if smoker:
+        score -= 30
+        drivers.append({"factor": "Smoker", "impact": -30, "explanation": "Increased mortality risk"})
+
+    if age > 55:
+        score -= 12
+    elif age < 30:
+        score += 5
+
+    ratio = coverage / income if income else 0
+    if ratio > 8:
+        score -= 15
+
+    if term > 25:
+        score -= 5
+
+    score = max(10, min(95, score))
+
+    level = "Low" if score >= 70 else "Moderate" if score >= 40 else "High"
+
+    return {"score": score, "level": level, "drivers": drivers}
+
+# ================= MARKET =================
+def market(premium, age):
+    return {
+        "min": round(premium * 0.88),
+        "max": round(premium * 1.12),
+        "percentile": 45 if age < 30 else 55 if age < 45 else 48,
+        "confidence": 12
+    }
+
+# ================= API =================
+@app.route("/calculate", methods=["POST"])
+def calculate():
+    d = request.json
+
+    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
+    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
+    market_data = market(prem, d["age"])
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
+
+    return jsonify({
+        "premium": prem,
+        "risk": risk,
+        "market": market_data,
+        "insurers": insurers,
+        "insurer_note": note,
+        "underwriting": under
+    })
+
+@app.route("/generate-report", methods=["POST"])
+def report():
+    d = request.json
+
+    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
+    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
+    market_data = market(prem, d["age"])
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("VETTIFY UNDERWRITING REPORT", styles["Heading1"]))
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph(f"<b>Risk:</b> {under['risk_score']} / 100", styles["Normal"]))
+    story.append(Paragraph(f"<b>Insight:</b> {under['risk_explanation']}", styles["Normal"]))
+    story.append(Spacer(1, 0.1*inch))
+
+    story.append(Paragraph(f"<b>Premium:</b> R{prem}", styles["Normal"]))
+    story.append(Paragraph(
+        f"Range: R{under['confidence_range']['low']} – R{under['confidence_range']['high']} ({under['confidence_range']['confidence']})",
+        styles["Normal"]
+    ))
+    story.append(Spacer(1, 0.1*inch))
+
+    story.append(Paragraph(f"<b>Coverage Ratio:</b> {under['coverage_ratio']}", styles["Normal"]))
+    story.append(Paragraph(under["coverage_interpretation"], styles["Normal"]))
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph("<b>Insurers:</b> " + ", ".join(insurers), styles["Normal"]))
+    story.append(Paragraph(note, styles["Normal"]))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    return send_file(buffer, as_attachment=True, download_name="vettify_report.pdf")
+
+# ================= RUN =================
+if __name__ == "__main__":
+    app.run(debug=True)
