@@ -25,35 +25,26 @@ def save_usage(usage):
     with open(USAGE_FILE, 'w') as f:
         json.dump(usage, f)
 
-def get_or_create_user(broker_email=None):
+def get_or_create_user():
     usage = load_usage()
-    if broker_email:
-        if broker_email not in usage:
-            usage[broker_email] = {
-                'pdf_count': 0,
-                'email': broker_email,
-                'created_at': datetime.now().isoformat(),
-                'plan': 'free'
-            }
-            save_usage(usage)
-        return broker_email
-    return None
-
-def increment_usage(user_key):
-    usage = load_usage()
-    if user_key in usage:
-        usage[user_key]['pdf_count'] += 1
+    # Simple counter for all users combined
+    if 'total_count' not in usage:
+        usage['total_count'] = 0
         save_usage(usage)
-        return usage[user_key]['pdf_count']
-    return 0
+    return usage
 
-def check_limit(user_key):
+def increment_usage():
     usage = load_usage()
-    if user_key in usage:
-        user_data = usage[user_key]
-        if user_data['plan'] == 'free' and user_data['pdf_count'] >= 20:
-            return False, user_data['pdf_count']
-    return True, usage.get(user_key, {}).get('pdf_count', 0)
+    usage['total_count'] += 1
+    save_usage(usage)
+    return usage['total_count']
+
+def check_limit():
+    usage = load_usage()
+    count = usage.get('total_count', 0)
+    if count >= 20:
+        return False, count
+    return True, count
 
 def calculate_premium(age, gender, smoker, income_band, coverage_amount, term_years):
     if age < 30:
@@ -105,7 +96,7 @@ def create_risk_gauge(score):
     empty = 10 - filled
     return "█" * filled + "░" * empty
 
-def generate_pdf(data, pdf_count, is_paid=False):
+def generate_pdf(data):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
@@ -202,6 +193,7 @@ def home():
             .form-card { background: white; border-radius: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); overflow: hidden; }
             .form-header { padding: 28px 32px; border-bottom: 1px solid #eef2f6; }
             .form-header h1 { font-size: 26px; font-weight: 700; color: #0a2540; margin-bottom: 8px; }
+            .form-header p { font-size: 14px; color: #5b6e8c; }
             .form-body { padding: 32px; }
             .form-group { margin-bottom: 24px; }
             label { display: block; font-weight: 600; margin-bottom: 8px; color: #1a2c3e; font-size: 13px; text-transform: uppercase; letter-spacing: 0.2px; }
@@ -260,8 +252,6 @@ def home():
                         
                         <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10 years</option><option value="15">15 years</option><option value="20">20 years</option><option value="25">25 years</option><option value="30">30 years</option><option value="custom">Custom term</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display: none;" min="1" max="50"></div><small>1-50 years</small></div>
                         
-                        <div class="form-group"><label>Your Email (to track free assessments)</label><input type="email" id="broker_email" required placeholder="broker@example.com"><small>Free for 20 assessments · No spam · PDF downloads instantly</small></div>
-                        
                         <button type="submit" class="btn-primary" id="generateBtn">Generate Report →</button>
                     </form>
                     <div class="loading" id="loading">⏳ Generating your professional report...</div>
@@ -272,7 +262,7 @@ def home():
             <div class="info-card">
                 <div class="info-section"><h3>📊 Methodology</h3><p>Powered by established mortality models and industry-standard loadings.</p><div class="pill">Actuarial Framework</div></div>
                 <div class="info-section"><h3>✓ What You Receive</h3><div class="trust-list"><div class="trust-item">📊 Risk Score (0-100 scale)</div><div class="trust-item">🏷️ Risk Classification (Low/Moderate/High)</div><div class="trust-item">💰 Premium Range estimate (ZAR)</div><div class="trust-item">🔬 Factor Breakdown</div><div class="trust-item">📄 Instant PDF download</div></div></div>
-                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ 20 free assessments</div><div class="trust-item">✅ Instant PDF download</div><div class="trust-item">✅ South African focused</div></div></div>
+                <div class="info-section"><h3>🛡️ Trust & Credibility</h3><p>Built using established mortality models. Independent tool for broker use only.</p><div class="trust-list"><div class="trust-item">✅ Unlimited free assessments</div><div class="trust-item">✅ Instant PDF download</div><div class="trust-item">✅ South African focused</div></div></div>
                 <div class="risk-preview"><span style="font-size: 12px; color: #5b6e8c;">Sample Output</span><div class="risk-score-large">85<span style="font-size: 20px;">/100</span></div><div class="gauge-preview">████████░░</div><div><span class="pill">LOW RISK</span></div></div>
                 <div class="identity"><p>Built using established mortality models</p><p>© 2026 Vettify · Independent pre-screening tool</p></div>
             </div>
@@ -289,13 +279,6 @@ def home():
             
             document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
-                const brokerEmail = document.getElementById('broker_email').value.trim();
-                if (!brokerEmail) { 
-                    document.getElementById('error').textContent = 'Please enter your email address'; 
-                    document.getElementById('error').style.display = 'block'; 
-                    return; 
-                }
                 
                 const generateBtn = document.getElementById('generateBtn');
                 const loadingDiv = document.getElementById('loading');
@@ -364,8 +347,7 @@ def home():
                     smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes', 
                     income_band: income, 
                     coverage_amount: coverageAmount, 
-                    term_years: termYears, 
-                    broker_email: brokerEmail 
+                    term_years: termYears
                 };
                 
                 try {
@@ -420,24 +402,9 @@ def home():
 def generate():
     try:
         data = request.json
-        broker_email = data.get('broker_email', None)
         
-        if not broker_email:
-            return jsonify({'error': 'Email required'}), 400
-        
-        user_key = get_or_create_user(broker_email)
-        within_limit, count = check_limit(user_key)
-        
-        if not within_limit:
-            return jsonify({
-                'error': 'limit_reached',
-                'message': f'You\'ve used your 20 free assessments. Contact us to upgrade for unlimited access.'
-            }), 403
-        
-        is_paid = load_usage().get(user_key, {}).get('plan') != 'free'
-        pdf_buffer = generate_pdf(data, count + 1, is_paid)
-        
-        increment_usage(user_key)
+        # No email needed, just generate PDF
+        pdf_buffer = generate_pdf(data)
         
         return send_file(
             pdf_buffer, 
@@ -448,22 +415,6 @@ def generate():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/usage', methods=['GET'])
-def get_usage():
-    broker_email = request.args.get('email')
-    if not broker_email:
-        return jsonify({'error': 'Email required'}), 400
-    
-    usage = load_usage()
-    if broker_email in usage:
-        return jsonify({
-            'pdf_count': usage[broker_email]['pdf_count'],
-            'plan': usage[broker_email]['plan'],
-            'remaining': 20 - usage[broker_email]['pdf_count'] if usage[broker_email]['plan'] == 'free' else 'unlimited'
-        })
-    
-    return jsonify({'error': 'User not found'}), 404
 
 if __name__ == '__main__':
     import os
