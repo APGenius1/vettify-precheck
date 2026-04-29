@@ -214,6 +214,176 @@ def generate_pdf(data, pdf_count, is_paid=False):
     buffer.seek(0)
     return buffer
 
+@app.route('/')
+def home():
+    return '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vettify PreCheck | Insurance Pre-Screening</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #1a5490 0%, #2a6eb0 100%); min-height: 100vh; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+            .header { background: #1a5490; color: white; padding: 30px; text-align: center; }
+            .header h1 { font-size: 28px; margin-bottom: 10px; }
+            .header h1 span { font-weight: 300; }
+            .header p { font-size: 14px; opacity: 0.9; }
+            .form-container { padding: 30px; }
+            .form-group { margin-bottom: 20px; }
+            label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; font-size: 14px; }
+            input, select { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; }
+            input:focus, select:focus { outline: none; border-color: #1a5490; }
+            .radio-group { display: flex; gap: 20px; margin-top: 8px; }
+            .radio-group label { display: flex; align-items: center; font-weight: normal; margin-bottom: 0; cursor: pointer; }
+            .radio-group input { width: auto; margin-right: 8px; }
+            button { width: 100%; padding: 14px; background: #1a5490; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+            button:hover { background: #0e3a66; }
+            button:disabled { background: #ccc; cursor: not-allowed; }
+            .loading { display: none; text-align: center; margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px; color: #666; }
+            .error { display: none; background: #fee; color: #c33; padding: 12px; border-radius: 8px; margin-top: 20px; font-size: 14px; }
+            .info { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 25px; font-size: 13px; color: #1a5490; line-height: 1.5; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Vettify <span>PreCheck</span></h1>
+                <p>Professional pre-screening reports in 10 seconds</p>
+            </div>
+            <div class="form-container">
+                <div class="info">
+                    <strong>⚡ For Broker Use Only</strong><br>
+                    Generate client-ready PDF assessments instantly.<br>
+                    <strong>Free for 20 reports</strong> — then R199/month for unlimited access.
+                </div>
+                <form id="assessmentForm">
+                    <div class="form-group">
+                        <label>Age</label>
+                        <input type="number" id="age" required min="18" max="80" placeholder="e.g., 35">
+                    </div>
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select id="gender" required>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Smoker?</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="smoker" value="yes" required> Yes</label>
+                            <label><input type="radio" name="smoker" value="no" required> No</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Annual Income Band (ZAR)</label>
+                        <select id="income" required>
+                            <option value="250000">R0 - R250,000</option>
+                            <option value="500000">R250,001 - R500,000</option>
+                            <option value="750000">R500,001 - R750,000</option>
+                            <option value="1000000">R750,001 - R1,000,000</option>
+                            <option value="1500000">R1,000,001 - R1,500,000</option>
+                            <option value="2000000">R1,500,001+</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Coverage Amount (ZAR)</label>
+                        <select id="coverage" required>
+                            <option value="500000">R500,000</option>
+                            <option value="1000000">R1,000,000</option>
+                            <option value="2000000">R2,000,000</option>
+                            <option value="3000000">R3,000,000</option>
+                            <option value="5000000">R5,000,000</option>
+                            <option value="10000000">R10,000,000</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Term (Years)</label>
+                        <select id="term" required>
+                            <option value="10">10 years</option>
+                            <option value="15">15 years</option>
+                            <option value="20">20 years</option>
+                            <option value="25">25 years</option>
+                            <option value="30">30 years</option>
+                        </select>
+                    </div>
+                    <button type="submit" id="generateBtn">Generate Vettify Report →</button>
+                </form>
+                <div class="loading" id="loading">Generating your PDF report... ⏳</div>
+                <div class="error" id="error"></div>
+            </div>
+        </div>
+        <script>
+            let brokerEmail = localStorage.getItem('vettify_email');
+            if (!brokerEmail) {
+                brokerEmail = prompt('Enter your email to start your 20 free Vettify PreCheck reports:');
+                if (brokerEmail) localStorage.setItem('vettify_email', brokerEmail);
+            }
+            document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const generateBtn = document.getElementById('generateBtn');
+                const loadingDiv = document.getElementById('loading');
+                const errorDiv = document.getElementById('error');
+                generateBtn.disabled = true;
+                loadingDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+                const formData = {
+                    age: parseInt(document.getElementById('age').value),
+                    gender: document.getElementById('gender').value,
+                    smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes',
+                    income_band: parseInt(document.getElementById('income').value),
+                    coverage_amount: parseInt(document.getElementById('coverage').value),
+                    term_years: parseInt(document.getElementById('term').value),
+                    broker_email: brokerEmail
+                };
+                if (formData.age < 18 || formData.age > 80) {
+                    errorDiv.textContent = 'Age must be between 18 and 80';
+                    errorDiv.style.display = 'block';
+                    generateBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                    return;
+                }
+                try {
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                    if (response.status === 403) {
+                        const error = await response.json();
+                        errorDiv.innerHTML = error.message;
+                        errorDiv.style.display = 'block';
+                        generateBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
+                        return;
+                    }
+                    if (!response.ok) throw new Error('Failed to generate PDF');
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `vettify_precheck_${formData.age}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    generateBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                } catch (error) {
+                    errorDiv.textContent = 'Error generating report. Please try again.';
+                    errorDiv.style.display = 'block';
+                    generateBtn.disabled = false;
+                    loadingDiv.style.display = 'none';
+                }
+            });
+        </script>
+    </body>
+    </html>
+    '''
+
 @app.route('/generate', methods=['POST'])
 def generate():
     try:
@@ -230,8 +400,7 @@ def generate():
         if not within_limit:
             return jsonify({
                 'error': 'limit_reached',
-                'message': f'You\'ve used your 20 free assessments. Upgrade to R199/month for unlimited access at vettifyprecheck.com',
-                'pdf_count': count
+                'message': f'You\'ve used your 20 free assessments. Upgrade to R199/month for unlimited access.'
             }), 403
         
         is_paid = load_usage().get(user_key, {}).get('plan') != 'free'
@@ -243,25 +412,6 @@ def generate():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/upgrade', methods=['POST'])
-def upgrade():
-    data = request.json
-    broker_email = data.get('email')
-    plan_type = data.get('plan')
-    
-    usage = load_usage()
-    
-    if broker_email not in usage:
-        return jsonify({'error': 'User not found'}), 404
-    
-    if plan_type == 'solo':
-        usage[broker_email]['plan'] = 'paid_solo'
-    elif plan_type == 'team':
-        usage[broker_email]['plan'] = 'paid_team'
-    
-    save_usage(usage)
-    return jsonify({'status': 'upgraded', 'plan': plan_type})
 
 @app.route('/usage', methods=['GET'])
 def get_usage():
@@ -279,9 +429,7 @@ def get_usage():
     
     return jsonify({'error': 'User not found'}), 404
 
-@app.route('/')
-def serve_frontend():
-    return send_file('index.html')
-
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
