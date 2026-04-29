@@ -222,7 +222,7 @@ def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Vettify PreCheck | Insurance Pre-Screening</title>
+        <title>Vettify PreCheck | Insurance Pre-Screening Tool for Brokers</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #1a5490 0%, #2a6eb0 100%); min-height: 100vh; padding: 20px; }
@@ -239,7 +239,7 @@ def home():
             .radio-group { display: flex; gap: 20px; margin-top: 8px; }
             .radio-group label { display: flex; align-items: center; font-weight: normal; margin-bottom: 0; cursor: pointer; }
             .radio-group input { width: auto; margin-right: 8px; }
-            button { width: 100%; padding: 14px; background: #1a5490; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+            button { width: 100%; padding: 14px; background: #1a5490; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: background 0.3s; }
             button:hover { background: #0e3a66; }
             button:disabled { background: #ccc; cursor: not-allowed; }
             .loading { display: none; text-align: center; margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px; color: #666; }
@@ -318,18 +318,27 @@ def home():
         </div>
         <script>
             let brokerEmail = localStorage.getItem('vettify_email');
-            if (!brokerEmail) {
-                brokerEmail = prompt('Enter your email to start your 20 free Vettify PreCheck reports:');
-                if (brokerEmail) localStorage.setItem('vettify_email', brokerEmail);
-            }
+            
             document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                if (!brokerEmail) {
+                    brokerEmail = prompt('Try Vettify PreCheck free for 20 reports\n\nEnter your email to get started:');
+                    if (brokerEmail) {
+                        localStorage.setItem('vettify_email', brokerEmail);
+                    } else {
+                        return;
+                    }
+                }
+                
                 const generateBtn = document.getElementById('generateBtn');
                 const loadingDiv = document.getElementById('loading');
                 const errorDiv = document.getElementById('error');
+                
                 generateBtn.disabled = true;
                 loadingDiv.style.display = 'block';
                 errorDiv.style.display = 'none';
+                
                 const formData = {
                     age: parseInt(document.getElementById('age').value),
                     gender: document.getElementById('gender').value,
@@ -339,6 +348,7 @@ def home():
                     term_years: parseInt(document.getElementById('term').value),
                     broker_email: brokerEmail
                 };
+                
                 if (formData.age < 18 || formData.age > 80) {
                     errorDiv.textContent = 'Age must be between 18 and 80';
                     errorDiv.style.display = 'block';
@@ -346,12 +356,14 @@ def home():
                     loadingDiv.style.display = 'none';
                     return;
                 }
+                
                 try {
                     const response = await fetch('/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(formData)
                     });
+                    
                     if (response.status === 403) {
                         const error = await response.json();
                         errorDiv.innerHTML = error.message;
@@ -360,7 +372,9 @@ def home():
                         loadingDiv.style.display = 'none';
                         return;
                     }
+                    
                     if (!response.ok) throw new Error('Failed to generate PDF');
+                    
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -370,8 +384,10 @@ def home():
                     a.click();
                     window.URL.revokeObjectURL(url);
                     a.remove();
+                    
                     generateBtn.disabled = false;
                     loadingDiv.style.display = 'none';
+                    
                 } catch (error) {
                     errorDiv.textContent = 'Error generating report. Please try again.';
                     errorDiv.style.display = 'block';
