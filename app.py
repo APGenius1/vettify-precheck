@@ -106,7 +106,6 @@ def generate_pdf(data, pdf_count, is_paid=False):
     styles = getSampleStyleSheet()
     story = []
     
-    # Professional letterhead
     title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, textColor=colors.HexColor('#0a2540'), alignment=1)
     story.append(Paragraph("VETTIFY PRECHECK", title_style))
     story.append(Spacer(1, 0.05*inch))
@@ -115,12 +114,10 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story.append(Paragraph("Professional Pre-Underwriting Assessment", sub_style))
     story.append(Spacer(1, 0.2*inch))
     
-    # Generated date
     date_style = ParagraphStyle('Date', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=2)
     story.append(Paragraph(f"Generated: {datetime.now().strftime('%d %B %Y')}", date_style))
     story.append(Spacer(1, 0.2*inch))
     
-    # Client Section
     story.append(Paragraph("CLIENT PROFILE", styles['Heading2']))
     story.append(Spacer(1, 0.1*inch))
     
@@ -146,25 +143,19 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story.append(info_table)
     story.append(Spacer(1, 0.2*inch))
     
-    # Risk Assessment
     risk_level, risk_comment, risk_score = determine_risk_level(data['age'], data['smoker'], data['coverage_amount'], data['income_band'])
     premium = calculate_premium(data['age'], data['gender'], data['smoker'], data['income_band'], data['coverage_amount'], data['term_years'])
     
     story.append(Paragraph("RISK ASSESSMENT", styles['Heading2']))
     story.append(Spacer(1, 0.1*inch))
     
-    # Risk Score Box
     if risk_level == "Low":
         risk_color = colors.HexColor('#2e7d32')
-        bg_color = colors.HexColor('#e8f5e9')
     elif risk_level == "Medium":
         risk_color = colors.HexColor('#ed6c02')
-        bg_color = colors.HexColor('#fff4e5')
     else:
         risk_color = colors.HexColor('#d32f2f')
-        bg_color = colors.HexColor('#fde8e8')
     
-    # Risk Score Display
     story.append(Paragraph(f"<b>Risk Classification:</b> {risk_level}", styles['Normal']))
     story.append(Spacer(1, 0.05*inch))
     story.append(Paragraph(f"<b>Risk Score:</b> {risk_score}/100", styles['Normal']))
@@ -174,7 +165,6 @@ def generate_pdf(data, pdf_count, is_paid=False):
     story.append(Paragraph(f"<b>Initial Underwriting View:</b> {risk_comment}", styles['Normal']))
     story.append(Spacer(1, 0.2*inch))
     
-    # Factors Breakdown
     story.append(Paragraph("FACTORS AFFECTING THIS ASSESSMENT", styles['Heading2']))
     story.append(Spacer(1, 0.1*inch))
     
@@ -207,20 +197,17 @@ def generate_pdf(data, pdf_count, is_paid=False):
     
     story.append(Spacer(1, 0.2*inch))
     
-    # Methodology
     story.append(Paragraph("METHODOLOGY", styles['Heading2']))
     story.append(Spacer(1, 0.05*inch))
     method_style = ParagraphStyle('Method', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
     story.append(Paragraph("This assessment uses an actuarially-informed framework combining age-based mortality curves (Gompertz-Makeham model), industry-standard smoker loadings (1.8x base), and coverage-to-income ratio analysis (industry threshold: 5x annual income). Results are directional estimates for pre-screening purposes.", method_style))
     story.append(Spacer(1, 0.15*inch))
     
-    # About
     story.append(Paragraph("ABOUT VETTIFY", styles['Heading2']))
     story.append(Spacer(1, 0.05*inch))
     story.append(Paragraph("Vettify PreCheck is an independent pre-screening tool designed for insurance brokers. Built by actuarial professionals to reduce pre-submission uncertainty.", method_style))
     story.append(Spacer(1, 0.2*inch))
     
-    # Disclaimer
     disclaimer_style = ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=7, textColor=colors.grey, alignment=0)
     story.append(Paragraph("DISCLAIMER: This is a pre-screening tool only and does not constitute a formal offer of coverage. Actual underwriting decisions and premiums vary by insurer and require full medical underwriting. Vettify PreCheck is an independent tool, not affiliated with any specific insurer.", disclaimer_style))
     story.append(Spacer(1, 0.1*inch))
@@ -254,7 +241,6 @@ def home():
                 min-height: 100vh;
             }
             
-            /* Navbar */
             .navbar {
                 background: white;
                 border-bottom: 1px solid #e2e8f0;
@@ -294,406 +280,438 @@ def home():
             .nav-links a {
                 color: #425466;
                 text-decoration: none;
-                    font-size: 14px;
-                    font-weight: 500;
-                }
-                
-                .badge-nav {
-                    background: #e8f0fe;
-                    padding: 6px 12px;
-                    border-radius: 30px;
-                    font-size: 12px;
-                    color: #0a2540;
-                }
-                
-                /* Main container */
-                .main-container {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 48px 24px;
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 48px;
-                }
-                
-                /* Left side - Form */
-                .form-card {
-                    background: white;
-                    border-radius: 24px;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-                    overflow: hidden;
-                }
-                
-                .form-header {
-                    padding: 24px 28px;
-                    background: white;
-                    border-bottom: 1px solid #eef2f6;
-                }
-                
-                .form-header h1 {
-                    font-size: 24px;
-                    font-weight: 600;
-                    color: #0a2540;
-                    margin-bottom: 6px;
-                }
-                
-                .form-header p {
-                    font-size: 14px;
-                    color: #5b6e8c;
-                }
-                
-                .form-body {
-                    padding: 28px;
-                }
-                
-                .form-group {
-                    margin-bottom: 20px;
-                }
-                
-                label {
-                    display: block;
-                    font-weight: 600;
-                    margin-bottom: 8px;
-                    color: #1a2c3e;
-                    font-size: 13px;
-                    letter-spacing: 0.3px;
-                }
-                
-                input, select {
-                    width: 100%;
-                    padding: 14px 16px;
-                    border: 1.5px solid #e2e8f0;
-                    border-radius: 12px;
-                    font-size: 15px;
-                    transition: all 0.2s;
-                    font-family: inherit;
-                    background: white;
-                }
-                
-                input:focus, select:focus {
-                    outline: none;
-                    border-color: #0a2540;
-                    box-shadow: 0 0 0 3px rgba(10,37,64,0.08);
-                }
-                
-                .radio-group {
-                    display: flex;
-                    gap: 28px;
-                    margin-top: 8px;
-                }
-                
-                .radio-group label {
-                    display: flex;
-                    align-items: center;
-                    font-weight: normal;
-                    margin-bottom: 0;
-                    cursor: pointer;
-                    gap: 8px;
-                }
-                
-                .radio-group input {
-                    width: auto;
-                    padding: 0;
-                }
-                
-                button {
-                    width: 100%;
-                    padding: 16px;
-                    background: #0a2540;
-                    color: white;
-                    border: none;
-                    border-radius: 14px;
-                    font-size: 16px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    margin-top: 16px;
-                }
-                
-                button:hover:not(:disabled) {
-                    background: #153e5c;
-                    transform: translateY(-1px);
-                }
-                
-                button:disabled {
-                    background: #cbd5e1;
-                    cursor: not-allowed;
-                    transform: none;
-                }
-                
-                /* Right side - Info */
-                .info-card {
-                    background: white;
-                    border-radius: 24px;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-                    padding: 28px;
-                }
-                
-                .info-section {
-                    margin-bottom: 32px;
-                }
-                
-                .info-section h3 {
-                    font-size: 16px;
-                    font-weight: 600;
-                    color: #0a2540;
-                    margin-bottom: 16px;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                
-                .info-section p {
-                    font-size: 14px;
-                    color: #425466;
-                    line-height: 1.6;
-                    margin-bottom: 12px;
-                }
-                
-                .trust-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                }
-                
-                .trust-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    font-size: 14px;
-                    color: #1a2c3e;
-                    padding: 10px 0;
-                    border-bottom: 1px solid #f0f4f8;
-                }
-                
-                .trust-icon {
-                    font-size: 20px;
-                }
-                
-                .pill {
-                    background: #e8f0fe;
-                    color: #0a2540;
-                    padding: 4px 10px;
-                    border-radius: 40px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    display: inline-block;
-                }
-                
-                .score-preview {
-                    background: #f8fafc;
-                    border-radius: 16px;
-                    padding: 20px;
-                    margin-top: 20px;
-                    text-align: center;
-                }
-                
-                .loading, .error {
-                    display: none;
-                    margin-top: 20px;
-                    padding: 16px;
-                    border-radius: 12px;
-                    font-size: 14px;
-                }
-                
-                .loading {
-                    background: #f1f5f9;
-                    color: #475569;
-                    text-align: center;
-                }
-                
-                .error {
-                    background: #fee2e2;
-                    color: #dc2626;
-                }
-                
-                .footer {
-                    text-align: center;
-                    padding: 32px;
-                    color: #8a9bb0;
-                    font-size: 13px;
-                    border-top: 1px solid #e2e8f0;
-                    margin-top: 48px;
-                }
-                
-                @media (max-width: 900px) {
-                    .main-container {
-                        grid-template-columns: 1fr;
-                        gap: 24px;
-                    }
-                    .nav-links {
-                        gap: 16px;
-                    }
-                }
-                
-                @media (max-width: 600px) {
-                    .main-container {
-                        padding: 24px 16px;
-                    }
-                    .form-body, .info-card, .form-header {
-                        padding: 20px;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <nav class="navbar">
-                <div class="nav-container">
-                    <a href="/" class="logo">Vettify <span>PreCheck</span></a>
-                    <div class="nav-links">
-                        <span class="badge-nav">For Brokers</span>
-                        <span class="badge-nav">Actuarial Model</span>
-                    </div>
-                </div>
-            </nav>
+                font-size: 14px;
+                font-weight: 500;
+            }
             
-            <div class="main-container">
-                <!-- Left Column - Form -->
-                <div class="form-card">
-                    <div class="form-header">
-                        <h1>Pre-Underwriting Assessment</h1>
-                        <p>Enter client details to generate professional risk report</p>
-                    </div>
-                    <div class="form-body">
-                        <form id="assessmentForm">
-                            <div class="form-group">
-                                <label>Age</label>
-                                <input type="number" id="age" required min="18" max="80" placeholder="e.g., 35">
+            .badge-nav {
+                background: #e8f0fe;
+                padding: 6px 12px;
+                border-radius: 30px;
+                font-size: 12px;
+                color: #0a2540;
+            }
+            
+            .main-container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 48px 24px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 48px;
+            }
+            
+            .form-card {
+                background: white;
+                border-radius: 24px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+                overflow: hidden;
+            }
+            
+            .form-header {
+                padding: 24px 28px;
+                background: white;
+                border-bottom: 1px solid #eef2f6;
+            }
+            
+            .form-header h1 {
+                font-size: 24px;
+                font-weight: 600;
+                color: #0a2540;
+                margin-bottom: 6px;
+            }
+            
+            .form-header p {
+                font-size: 14px;
+                color: #5b6e8c;
+            }
+            
+            .form-body {
+                padding: 28px;
+            }
+            
+            .form-group {
+                margin-bottom: 20px;
+            }
+            
+            label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 8px;
+                color: #1a2c3e;
+                font-size: 13px;
+                letter-spacing: 0.3px;
+            }
+            
+            input, select {
+                width: 100%;
+                padding: 14px 16px;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 12px;
+                font-size: 15px;
+                transition: all 0.2s;
+                font-family: inherit;
+                background: white;
+            }
+            
+            input:focus, select:focus {
+                outline: none;
+                border-color: #0a2540;
+                box-shadow: 0 0 0 3px rgba(10,37,64,0.08);
+            }
+            
+            .radio-group {
+                display: flex;
+                gap: 28px;
+                margin-top: 8px;
+            }
+            
+            .radio-group label {
+                display: flex;
+                align-items: center;
+                font-weight: normal;
+                margin-bottom: 0;
+                cursor: pointer;
+                gap: 8px;
+            }
+            
+            .radio-group input {
+                width: auto;
+                padding: 0;
+            }
+            
+            .inline-group {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }
+            
+            .inline-group select {
+                flex: 2;
+            }
+            
+            .inline-group input {
+                flex: 1;
+            }
+            
+            small {
+                display: block;
+                margin-top: 4px;
+                font-size: 11px;
+                color: #5b6e8c;
+            }
+            
+            button {
+                width: 100%;
+                padding: 16px;
+                background: #0a2540;
+                color: white;
+                border: none;
+                border-radius: 14px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 16px;
+            }
+            
+            button:hover:not(:disabled) {
+                background: #153e5c;
+                transform: translateY(-1px);
+            }
+            
+            button:disabled {
+                background: #cbd5e1;
+                cursor: not-allowed;
+                transform: none;
+            }
+            
+            .info-card {
+                background: white;
+                border-radius: 24px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+                padding: 28px;
+            }
+            
+            .info-section {
+                margin-bottom: 32px;
+            }
+            
+            .info-section h3 {
+                font-size: 16px;
+                font-weight: 600;
+                color: #0a2540;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .info-section p {
+                font-size: 14px;
+                color: #425466;
+                line-height: 1.6;
+                margin-bottom: 12px;
+            }
+            
+            .trust-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .trust-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 14px;
+                color: #1a2c3e;
+                padding: 10px 0;
+                border-bottom: 1px solid #f0f4f8;
+            }
+            
+            .trust-icon {
+                font-size: 20px;
+            }
+            
+            .pill {
+                background: #e8f0fe;
+                color: #0a2540;
+                padding: 4px 10px;
+                border-radius: 40px;
+                font-size: 11px;
+                font-weight: 600;
+                display: inline-block;
+            }
+            
+            .score-preview {
+                background: #f8fafc;
+                border-radius: 16px;
+                padding: 20px;
+                margin-top: 20px;
+                text-align: center;
+            }
+            
+            .loading, .error {
+                display: none;
+                margin-top: 20px;
+                padding: 16px;
+                border-radius: 12px;
+                font-size: 14px;
+            }
+            
+            .loading {
+                background: #f1f5f9;
+                color: #475569;
+                text-align: center;
+            }
+            
+            .error {
+                background: #fee2e2;
+                color: #dc2626;
+            }
+            
+            .footer {
+                text-align: center;
+                padding: 32px;
+                color: #8a9bb0;
+                font-size: 13px;
+                border-top: 1px solid #e2e8f0;
+                margin-top: 48px;
+            }
+            
+            @media (max-width: 900px) {
+                .main-container {
+                    grid-template-columns: 1fr;
+                    gap: 24px;
+                }
+                .nav-links {
+                    gap: 16px;
+                }
+            }
+            
+            @media (max-width: 600px) {
+                .main-container {
+                    padding: 24px 16px;
+                }
+                .form-body, .info-card, .form-header {
+                    padding: 20px;
+                }
+                .inline-group {
+                    flex-direction: column;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <nav class="navbar">
+            <div class="nav-container">
+                <a href="/" class="logo">Vettify <span>PreCheck</span></a>
+                <div class="nav-links">
+                    <span class="badge-nav">For Brokers</span>
+                    <span class="badge-nav">Actuarial Model</span>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="main-container">
+            <div class="form-card">
+                <div class="form-header">
+                    <h1>Pre-Underwriting Assessment</h1>
+                    <p>Enter client details to generate professional risk report</p>
+                </div>
+                <div class="form-body">
+                    <form id="assessmentForm">
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" id="age" required min="18" max="80" placeholder="e.g., 35">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="gender" required>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Smoker Status</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="smoker" value="yes" required> Yes</label>
+                                <label><input type="radio" name="smoker" value="no" required> No</label>
                             </div>
-                            
-                            <div class="form-group">
-                                <label>Gender</label>
-                                <select id="gender" required>
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Smoker Status</label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="smoker" value="yes" required> Yes</label>
-                                    <label><input type="radio" name="smoker" value="no" required> No</label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Annual Income (ZAR)</label>
-                                <select id="income" required>
-                                    <option value="250000">R0 - R250,000</option>
-                                    <option value="500000">R250,001 - R500,000</option>
-                                    <option value="750000">R500,001 - R750,000</option>
-                                    <option value="1000000">R750,001 - R1,000,000</option>
-                                    <option value="1500000">R1,000,001 - R1,500,000</option>
-                                    <option value="2000000">R1,500,001+</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Coverage Amount (ZAR)</label>
-                                <select id="coverage" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Annual Income (ZAR)</label>
+                            <select id="income" required>
+                                <option value="250000">R0 - R250,000</option>
+                                <option value="500000">R250,001 - R500,000</option>
+                                <option value="750000">R500,001 - R750,000</option>
+                                <option value="1000000">R750,001 - R1,000,000</option>
+                                <option value="1500000">R1,000,001 - R1,500,000</option>
+                                <option value="2000000">R1,500,001+</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Coverage Amount (ZAR)</label>
+                            <div class="inline-group">
+                                <select id="coverage_preset">
                                     <option value="500000">R500,000</option>
                                     <option value="1000000">R1,000,000</option>
                                     <option value="2000000">R2,000,000</option>
                                     <option value="3000000">R3,000,000</option>
                                     <option value="5000000">R5,000,000</option>
                                     <option value="10000000">R10,000,000</option>
+                                    <option value="custom">Custom amount</option>
                                 </select>
+                                <input type="number" id="coverage_custom" placeholder="Enter amount" style="display: none;" min="50000">
                             </div>
-                            
-                            <div class="form-group">
-                                <label>Term (Years)</label>
-                                <select id="term" required>
+                            <small>Minimum R50,000</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Term (Years)</label>
+                            <div class="inline-group">
+                                <select id="term_preset">
                                     <option value="10">10 years</option>
                                     <option value="15">15 years</option>
                                     <option value="20">20 years</option>
                                     <option value="25">25 years</option>
                                     <option value="30">30 years</option>
+                                    <option value="custom">Custom term</option>
                                 </select>
+                                <input type="number" id="term_custom" placeholder="Enter years" style="display: none;" min="1" max="50">
                             </div>
-                            
-                            <button type="submit" id="generateBtn">Generate Assessment →</button>
-                        </form>
-                        
-                        <div class="loading" id="loading">
-                            ⏳ Generating professional assessment...
+                            <small>1-50 years</small>
                         </div>
                         
-                        <div class="error" id="error"></div>
-                    </div>
-                </div>
-                
-                <!-- Right Column - Information -->
-                <div class="info-card">
-                    <div class="info-section">
-                        <h3>📊 How It Works</h3>
-                        <p>Vettify PreCheck uses an actuarially-informed framework to provide directional pre-screening estimates for insurance brokers.</p>
-                        <div class="pill" style="margin-top: 8px;">Gompertz-Makeham Model</div>
-                    </div>
+                        <button type="submit" id="generateBtn">Generate Assessment →</button>
+                    </form>
                     
-                    <div class="info-section">
-                        <h3>✓ What You Get</h3>
-                        <div class="trust-list">
-                            <div class="trust-item">
-                                <span class="trust-icon">📄</span>
-                                <span>Professional PDF report for clients</span>
-                            </div>
-                            <div class="trust-item">
-                                <span class="trust-icon">🎯</span>
-                                <span>Risk score (0-100) + classification</span>
-                            </div>
-                            <div class="trust-item">
-                                <span class="trust-icon">💰</span>
-                                <span>Estimated premium range</span>
-                            </div>
-                            <div class="trust-item">
-                                <span class="trust-icon">🔬</span>
-                                <span>Factor breakdown & methodology</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="info-section">
-                        <h3>🛡️ Trust & Credibility</h3>
-                        <p>Built using actuarial mortality curves and industry-standard loadings. Independent tool for broker use only.</p>
-                        <div class="trust-list" style="margin-top: 12px;">
-                            <div class="trust-item">
-                                <span>✅</span>
-                                <span>20 free assessments</span>
-                            </div>
-                            <div class="trust-item">
-                                <span>✅</span>
-                                <span>No client data stored</span>
-                            </div>
-                            <div class="trust-item">
-                                <span>✅</span>
-                                <span>Professional output</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="score-preview">
-                        <span style="font-size: 13px; color: #5b6e8c;">Example Output</span>
-                        <div style="font-size: 32px; font-weight: 700; color: #0a2540; margin: 8px 0;">88<span style="font-size: 16px; font-weight: 400;">/100</span></div>
-                        <div><span class="pill" style="background: #e8f0fe;">Low Risk</span></div>
-                        <p style="font-size: 12px; margin-top: 12px;">Risk Classification + Premium Indication</p>
-                    </div>
+                    <div class="loading" id="loading">⏳ Generating professional assessment...</div>
+                    <div class="error" id="error"></div>
                 </div>
             </div>
             
-            <div class="footer">
-                <p>Vettify PreCheck · Professional pre-underwriting for insurance brokers</p>
-                <p style="margin-top: 8px;">© 2026 · Independent tool · Not affiliated with any specific insurer</p>
+            <div class="info-card">
+                <div class="info-section">
+                    <h3>📊 How It Works</h3>
+                    <p>Vettify PreCheck uses an actuarially-informed framework to provide directional pre-screening estimates for insurance brokers.</p>
+                    <div class="pill" style="margin-top: 8px;">Gompertz-Makeham Model</div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>✓ What You Get</h3>
+                    <div class="trust-list">
+                        <div class="trust-item"><span class="trust-icon">📄</span><span>Professional PDF report for clients</span></div>
+                        <div class="trust-item"><span class="trust-icon">🎯</span><span>Risk score (0-100) + classification</span></div>
+                        <div class="trust-item"><span class="trust-icon">💰</span><span>Estimated premium range</span></div>
+                        <div class="trust-item"><span class="trust-icon">🔬</span><span>Factor breakdown & methodology</span></div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>🛡️ Trust & Credibility</h3>
+                    <p>Built using actuarial mortality curves and industry-standard loadings. Independent tool for broker use only.</p>
+                    <div class="trust-list" style="margin-top: 12px;">
+                        <div class="trust-item"><span>✅</span><span>20 free assessments</span></div>
+                        <div class="trust-item"><span>✅</span><span>No client data stored</span></div>
+                        <div class="trust-item"><span>✅</span><span>Professional output</span></div>
+                    </div>
+                </div>
+                
+                <div class="score-preview">
+                    <span style="font-size: 13px; color: #5b6e8c;">Example Output</span>
+                    <div style="font-size: 32px; font-weight: 700; color: #0a2540; margin: 8px 0;">88<span style="font-size: 16px; font-weight: 400;">/100</span></div>
+                    <div><span class="pill" style="background: #e8f0fe;">Low Risk</span></div>
+                    <p style="font-size: 12px; margin-top: 12px;">Risk Classification + Premium Indication</p>
+                </div>
             </div>
+        </div>
+        
+        <div class="footer">
+            <p>Vettify PreCheck · Professional pre-underwriting for insurance brokers</p>
+            <p style="margin-top: 8px;">© 2026 · Independent tool · Not affiliated with any specific insurer</p>
+        </div>
         
         <script>
             let brokerEmail = localStorage.getItem('vettify_email');
+            
+            const coveragePreset = document.getElementById('coverage_preset');
+            const coverageCustom = document.getElementById('coverage_custom');
+            const termPreset = document.getElementById('term_preset');
+            const termCustom = document.getElementById('term_custom');
+            
+            coveragePreset.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    coverageCustom.style.display = 'block';
+                    coverageCustom.required = true;
+                } else {
+                    coverageCustom.style.display = 'none';
+                    coverageCustom.required = false;
+                    coverageCustom.value = '';
+                }
+            });
+            
+            termPreset.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    termCustom.style.display = 'block';
+                    termCustom.required = true;
+                } else {
+                    termCustom.style.display = 'none';
+                    termCustom.required = false;
+                    termCustom.value = '';
+                }
+            });
             
             document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
                 if (!brokerEmail) {
-                    brokerEmail = prompt('Vettify PreCheck - Professional Pre-Screening\n\nEnter your email to start your 20 free assessments:');
+                    brokerEmail = prompt('Vettify PreCheck - Professional Pre-Screening\\n\\nEnter your email to start your 20 free assessments:');
                     if (brokerEmail) {
                         localStorage.setItem('vettify_email', brokerEmail);
                     } else {
@@ -710,13 +728,43 @@ def home():
                 errorDiv.style.display = 'none';
                 generateBtn.textContent = 'Generating...';
                 
+                let coverageAmount;
+                if (coveragePreset.value === 'custom') {
+                    coverageAmount = parseInt(coverageCustom.value);
+                    if (isNaN(coverageAmount) || coverageAmount < 50000) {
+                        errorDiv.textContent = 'Please enter a valid coverage amount (minimum R50,000)';
+                        errorDiv.style.display = 'block';
+                        generateBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
+                        generateBtn.textContent = 'Generate Assessment →';
+                        return;
+                    }
+                } else {
+                    coverageAmount = parseInt(coveragePreset.value);
+                }
+                
+                let termYears;
+                if (termPreset.value === 'custom') {
+                    termYears = parseInt(termCustom.value);
+                    if (isNaN(termYears) || termYears < 1 || termYears > 50) {
+                        errorDiv.textContent = 'Please enter a valid term (1-50 years)';
+                        errorDiv.style.display = 'block';
+                        generateBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
+                        generateBtn.textContent = 'Generate Assessment →';
+                        return;
+                    }
+                } else {
+                    termYears = parseInt(termPreset.value);
+                }
+                
                 const formData = {
                     age: parseInt(document.getElementById('age').value),
                     gender: document.getElementById('gender').value,
                     smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes',
                     income_band: parseInt(document.getElementById('income').value),
-                    coverage_amount: parseInt(document.getElementById('coverage').value),
-                    term_years: parseInt(document.getElementById('term').value),
+                    coverage_amount: coverageAmount,
+                    term_years: termYears,
                     broker_email: brokerEmail
                 };
                 
