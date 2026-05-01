@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, send_file, render_template_string
 from flask_cors import CORS
-from functools import wraps
 import io
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -12,518 +11,384 @@ import os
 import uuid
 import math
 import sqlite3
-import logging
-from typing import Dict, List, Tuple, Any, Optional
-from dataclasses import dataclass, asdict
-from contextlib import contextmanager
-
-# ================= CONFIGURATION =================
-class Config:
-    DATABASE = "vettify.db"
-    INTEREST_RATE = 0.06
-    MONTHS_PER_YEAR = 12
-    MIN_PREMIUM = 80
-    MAX_PREMIUM = 15000
-    GENDER_MULTIPLIER_MALE = 1.12
-    MAX_RATIO_ADJUSTMENT = 0.6
-    RATIO_THRESHOLD = 4
-    RATIO_INCREMENT = 0.1
-    CONFIDENCE_MARGIN = 0.12
-    CACHE_TIMEOUT = 300
-    
-    G_A, G_B, G_C = 0.00022, 0.000027, 0.092
-    
-    SMOKER_MULTIPLIERS = [
-        (30, 2.5), (40, 2.2), (50, 1.9), (60, 1.6), (float('inf'), 1.4)
-    ]
-    
-    BASE_RISK_SCORE = 70
-    SMOKER_PENALTY = 30
-    AGE_PENALTY_OVER_55 = 12
-    AGE_BONUS_UNDER_30 = 5
-    RATIO_PENALTY_THRESHOLD = 8
-    RATIO_PENALTY = 15
-    TERM_PENALTY_THRESHOLD = 25
-    TERM_PENALTY = 5
-    MIN_RISK_SCORE = 10
-    MAX_RISK_SCORE = 95
-    
-    RISK_LEVEL_LOW = 70
-    RISK_LEVEL_MODERATE = 40
 
 app = Flask(__name__)
-app.config.from_object(Config)
 app.secret_key = os.urandom(24).hex()
 CORS(app)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+DATABASE = "vettify.db"
 
-# ================= DATA CLASSES =================
-@dataclass
-class PolicyInput:
-    age: int
-    gender: str
-    smoker: bool
-    income: float
-    coverage: float
-    term: int
-    
-    def validate(self) -> Tuple[bool, Optional[str]]:
-        if not 18 <= self.age <= 80:
-            return False, "Age must be between 18 and 80"
-        if self.gender not in ['male', 'female']:
-            return False, "Gender must be 'male' or 'female'"
-        if self.income <= 0:
-            return False, "Income must be positive"
-        if self.coverage <= 0:
-            return False, "Coverage must be positive"
-        if not 1 <= self.term <= 40:
-            return False, "Term must be between 1 and 40 years"
-        if self.coverage > self.income * 15:
-            return False, "Coverage exceeds reasonable limits (max 15x income)"
-        return True, None
-
-@dataclass
-class RiskScore:
-    score: int
-    level: str
-    drivers: List[Dict[str, Any]]
-
-@dataclass
-class UnderwritingSummary:
-    risk_score: int
-    risk_level: str
-    risk_explanation: str
-    premium: int
-    confidence_range: Dict[str, Any]
-    coverage_ratio: str
-    coverage_interpretation: str
-
-# ================= DATABASE =================
-@contextmanager
+# ================= DB =================
 def get_db():
-    conn = sqlite3.connect(Config.DATABASE)
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
+    return conn
 
 def init_db():
-    try:
-        with get_db() as conn:
-            conn.execute("""CREATE TABLE IF NOT EXISTS usage (
-                email TEXT PRIMARY KEY,
-                count INTEGER DEFAULT 0,
-                paid BOOLEAN DEFAULT 0,
-                first_use TEXT,
-                last_use TEXT,
-                total_calculations INTEGER DEFAULT 0
-            )""")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_last_use ON usage(last_use)")
-            conn.commit()
-        logger.info("Database initialized successfully")
-    except sqlite3.Error as e:
-        logger.error(f"Database initialization failed: {e}")
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS usage (
+        email TEXT PRIMARY KEY,
+        count INTEGER DEFAULT 0,
+        paid BOOLEAN DEFAULT 0,
+        first_use TEXT
+    )""")
+    conn.commit()
+    conn.close()
 
-# ================= CACHE =================
-class PremiumCache:
-    def __init__(self, timeout: int = Config.CACHE_TIMEOUT):
-        self._cache = {}
-        self.timeout = timeout
-    
-    def _make_key(self, age: int, gender: str, smoker: bool, income: float, 
-                  coverage: float, term: int) -> str:
-        return f"{age}_{gender}_{smoker}_{income:.2f}_{coverage:.2f}_{term}"
-    
-    def get(self, age: int, gender: str, smoker: bool, income: float, 
-            coverage: float, term: int) -> Optional[int]:
-        key = self._make_key(age, gender, smoker, income, coverage, term)
-        if key in self._cache:
-            value, timestamp = self._cache[key]
-            if (datetime.now() - timestamp).seconds < self.timeout:
-                return value
-            del self._cache[key]
-        return None
-    
-    def set(self, age: int, gender: str, smoker: bool, income: float, 
-            coverage: float, term: int, premium: int):
-        key = self._make_key(age, gender, smoker, income, coverage, term)
-        self._cache[key] = (premium, datetime.now())
-
-premium_cache = PremiumCache()
+init_db()
 
 # ================= ACTUARIAL CORE =================
-def get_smoker_multiplier(age: int) -> float:
-    for max_age, multiplier in Config.SMOKER_MULTIPLIERS:
-        if age < max_age:
-            return multiplier
-    return 1.4
+G_A, G_B, G_C = 0.00022, 0.000027, 0.092
 
-def force_mortality(age: int) -> float:
-    return Config.G_A + Config.G_B * math.exp(Config.G_C * age)
+def force_mortality(age):
+    return G_A + G_B * math.exp(G_C * age)
 
-def calculate_qx(age: int, smoker: bool) -> float:
+def smoker_mult(age):
+    if age < 30:
+        return 2.5
+    elif age < 40:
+        return 2.2
+    elif age < 50:
+        return 1.9
+    elif age < 60:
+        return 1.6
+    else:
+        return 1.4
+
+def qx(age, smoker):
     mu = force_mortality(age)
     if smoker:
-        mu *= get_smoker_multiplier(age)
-    return 1 - math.exp(-mu / Config.MONTHS_PER_YEAR)
+        mu *= smoker_mult(age)
+    return 1 - math.exp(-mu / 12)
 
-def epv_benefit(coverage: float, age: int, term: int, smoker: bool) -> float:
-    v = 1 / (1 + Config.INTEREST_RATE / Config.MONTHS_PER_YEAR)
-    epv = 0.0
-    surv = 1.0
-    
-    for month in range(term * Config.MONTHS_PER_YEAR):
-        current_age = age + month // Config.MONTHS_PER_YEAR
-        qx_val = calculate_qx(current_age, smoker)
-        epv += (v ** (month + 1)) * surv * qx_val * coverage
-        surv *= (1 - qx_val)
-    
+def epv_benefit(cov, age, term, smoker):
+    v = 1 / (1 + 0.06 / 12)
+    epv, surv = 0, 1
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** (m+1)) * surv * qx(a, smoker) * cov
+        surv *= (1 - qx(a, smoker))
     return epv
 
-def epv_premium(age: int, term: int, smoker: bool) -> float:
-    v = 1 / (1 + Config.INTEREST_RATE / Config.MONTHS_PER_YEAR)
-    epv = 0.0
-    surv = 1.0
-    
-    for month in range(term * Config.MONTHS_PER_YEAR):
-        current_age = age + month // Config.MONTHS_PER_YEAR
-        epv += (v ** month) * surv
-        surv *= (1 - calculate_qx(current_age, smoker))
-    
+def epv_prem(age, term, smoker):
+    v = 1 / (1 + 0.06 / 12)
+    epv, surv = 0, 1
+    for m in range(term * 12):
+        a = age + m // 12
+        epv += (v ** m) * surv
+        surv *= (1 - qx(a, smoker))
     return epv
 
-def calculate_base_premium(age: int, gender: str, smoker: bool, 
-                          income: float, coverage: float, term: int) -> int:
-    cached = premium_cache.get(age, gender, smoker, income, coverage, term)
-    if cached:
-        return cached
-    
-    epv_ben = epv_benefit(coverage, age, term, smoker)
-    epv_prem_val = epv_premium(age, term, smoker)
-    
-    if epv_prem_val < 1e-6:
-        raise ValueError("EPV of premium too small")
-    
-    premium = epv_ben / epv_prem_val
-    
+def premium_calc(age, gender, smoker, income, coverage, term):
+    p = epv_benefit(coverage, age, term, smoker) / max(epv_prem(age, term, smoker), 1)
+
     if gender == "male":
-        premium *= Config.GENDER_MULTIPLIER_MALE
-    
-    ratio = coverage / income if income > 0 else 10
-    if ratio > Config.RATIO_THRESHOLD:
-        adjustment = 1 + min(Config.MAX_RATIO_ADJUSTMENT, 
-                           (ratio - Config.RATIO_THRESHOLD) * Config.RATIO_INCREMENT)
-        premium *= adjustment
-    
-    final_premium = max(Config.MIN_PREMIUM, min(Config.MAX_PREMIUM, round(premium)))
-    premium_cache.set(age, gender, smoker, income, coverage, term, final_premium)
-    
-    return final_premium
+        p *= 1.12
 
-# ================= RISK ENGINE =================
-def get_risk_explanation(score: int) -> str:
-    if score >= Config.RISK_LEVEL_LOW:
+    ratio = coverage / income if income else 10
+    if ratio > 4:
+        p *= 1 + min(0.6, (ratio - 4) * 0.1)
+
+    return max(80, min(15000, round(p)))
+
+# ================= UNDERWRITING ENGINE =================
+def risk_explanation(score):
+    if score >= 70:
         return "Strong profile: standard mortality, minimal underwriting friction, likely straight-through approval."
-    elif score >= Config.RISK_LEVEL_MODERATE:
+    elif score >= 40:
         return "Moderate profile: expect underwriting questions and possible loadings."
     return "High-risk profile: specialist underwriting required, possible medical evidence."
 
-def calculate_risk_score(age: int, smoker: bool, coverage: float, 
-                        income: float, term: int) -> RiskScore:
-    score = Config.BASE_RISK_SCORE
-    drivers = []
-    
-    if smoker:
-        score -= Config.SMOKER_PENALTY
-        drivers.append({
-            "factor": "Smoker",
-            "impact": -Config.SMOKER_PENALTY,
-            "explanation": "Increased mortality risk"
-        })
-    
-    if age > 55:
-        score -= Config.AGE_PENALTY_OVER_55
-        drivers.append({
-            "factor": "Age > 55",
-            "impact": -Config.AGE_PENALTY_OVER_55,
-            "explanation": "Higher mortality risk at advanced age"
-        })
-    elif age < 30:
-        score += Config.AGE_BONUS_UNDER_30
-        drivers.append({
-            "factor": "Age < 30",
-            "impact": Config.AGE_BONUS_UNDER_30,
-            "explanation": "Lower mortality risk at younger age"
-        })
-    
-    ratio = coverage / income if income > 0 else 0
-    if ratio > Config.RATIO_PENALTY_THRESHOLD:
-        score -= Config.RATIO_PENALTY
-        drivers.append({
-            "factor": "High coverage ratio",
-            "impact": -Config.RATIO_PENALTY,
-            "explanation": f"Coverage {ratio:.1f}x income exceeds typical limits"
-        })
-    
-    if term > Config.TERM_PENALTY_THRESHOLD:
-        score -= Config.TERM_PENALTY
-        drivers.append({
-            "factor": "Long term",
-            "impact": -Config.TERM_PENALTY,
-            "explanation": "Extended policy duration increases risk"
-        })
-    
-    score = max(Config.MIN_RISK_SCORE, min(Config.MAX_RISK_SCORE, score))
-    
-    if score >= Config.RISK_LEVEL_LOW:
-        level = "Low"
-    elif score >= Config.RISK_LEVEL_MODERATE:
-        level = "Moderate"
-    else:
-        level = "High"
-    
-    return RiskScore(score=score, level=level, drivers=drivers)
-
-def insurer_match(score: int, smoker: bool) -> Tuple[List[str], str]:
+def insurer_match(score, smoker):
     if smoker:
         return ["Momentum", "BrightRock"], "Smoker pricing applies; specialist underwriting required."
-    
-    if score >= Config.RISK_LEVEL_LOW:
+    if score >= 70:
         return ["Discovery", "Momentum", "Old Mutual", "Sanlam"], "Top-tier underwriting bands."
-    elif score >= Config.RISK_LEVEL_MODERATE:
+    if score >= 40:
         return ["Old Mutual", "Momentum"], "Standard underwriting expected."
-    else:
-        return ["Hollard", "BrightRock"], "Restricted underwriting pool."
+    return ["Hollard", "BrightRock"], "Restricted underwriting pool."
 
-def get_market_comparison(premium: int, age: int) -> Dict[str, Any]:
-    confidence = Config.CONFIDENCE_MARGIN
+def underwriting_summary(premium, risk, age, coverage, income):
+    ratio = coverage / income if income else 0
     return {
-        "min": round(premium * (1 - confidence)),
-        "max": round(premium * (1 + confidence)),
-        "percentile": 45 if age < 30 else 55 if age < 45 else 48,
-        "confidence": round(confidence * 100)
+        "risk_score": risk["score"],
+        "risk_level": risk["level"],
+        "risk_explanation": risk_explanation(risk["score"]),
+        "premium": premium,
+        "confidence_range": {
+            "low": int(premium * 0.88),
+            "high": int(premium * 1.12),
+            "confidence": "±12%"
+        },
+        "coverage_ratio": f"{round(ratio, 1)}x income",
+        "coverage_interpretation": "Within norms" if ratio <= 4 else "Elevated risk" if ratio <= 8 else "High strain loading expected"
     }
 
-def create_underwriting_summary(premium: int, risk: RiskScore, age: int, 
-                                coverage: float, income: float) -> UnderwritingSummary:
-    ratio = coverage / income if income > 0 else 0
-    confidence_margin = Config.CONFIDENCE_MARGIN
-    
-    return UnderwritingSummary(
-        risk_score=risk.score,
-        risk_level=risk.level,
-        risk_explanation=get_risk_explanation(risk.score),
-        premium=premium,
-        confidence_range={
-            "low": int(premium * (1 - confidence_margin)),
-            "high": int(premium * (1 + confidence_margin)),
-            "confidence": f"±{round(confidence_margin * 100)}%"
-        },
-        coverage_ratio=f"{round(ratio, 1)}x income",
-        coverage_interpretation=(
-            "Within norms" if ratio <= 4 else
-            "Elevated risk" if ratio <= 8 else
-            "High strain loading expected"
-        )
-    )
+# ================= RISK SCORE =================
+def risk_score(age, smoker, coverage, income, term):
+    score = 70
+    drivers = []
 
-# ================= DECORATORS =================
-def validate_policy_input(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        data = request.json
-        if not data:
-            return jsonify({"error": "No input data provided"}), 400
-        
-        try:
-            policy_input = PolicyInput(
-                age=int(data.get("age", 0)),
-                gender=data.get("gender", "").lower(),
-                smoker=bool(data.get("smoker", False)),
-                income=float(data.get("income", 0)),
-                coverage=float(data.get("coverage", 0)),
-                term=int(data.get("term", 0))
-            )
-            
-            is_valid, error_msg = policy_input.validate()
-            if not is_valid:
-                return jsonify({"error": error_msg}), 400
-            
-            request.policy_input = policy_input
-            return f(*args, **kwargs)
-            
-        except (ValueError, TypeError) as e:
-            logger.error(f"Input validation error: {e}")
-            return jsonify({"error": f"Invalid input format: {str(e)}"}), 400
-    
-    return decorated_function
+    if smoker:
+        score -= 30
+        drivers.append({"factor": "Smoker", "impact": -30, "explanation": "Increased mortality risk"})
 
-def handle_errors(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in {f.__name__}: {str(e)}", exc_info=True)
-            return jsonify({"error": "An internal error occurred", "details": str(e)}), 500
-    return decorated_function
+    if age > 55:
+        score -= 12
+        drivers.append({"factor": f"Age {age}", "impact": -12, "explanation": "Higher mortality at advanced age"})
+    elif age < 30:
+        score += 5
+        drivers.append({"factor": f"Age {age}", "impact": 5, "explanation": "Young age - favorable mortality"})
 
-# ================= API ENDPOINTS =================
-@app.route("/health", methods=["GET"])
-def health_check():
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": "2.0.0"
-    })
+    ratio = coverage / income if income else 0
+    if ratio > 8:
+        score -= 15
+        drivers.append({"factor": "High coverage/income", "impact": -15, "explanation": f"Coverage {ratio:.1f}x income exceeds guidelines"})
+    elif ratio > 6:
+        score -= 10
+        drivers.append({"factor": "Elevated coverage/income", "impact": -10, "explanation": f"Coverage {ratio:.1f}x income may trigger review"})
+    elif ratio > 4:
+        score -= 5
+        drivers.append({"factor": "Moderate coverage/income", "impact": -5, "explanation": f"Coverage {ratio:.1f}x income near guideline"})
 
+    if term > 25:
+        score -= 5
+        drivers.append({"factor": "Long term", "impact": -5, "explanation": "Policy term >25 years adds uncertainty"})
+
+    score = max(10, min(95, score))
+    level = "Low" if score >= 70 else "Moderate" if score >= 40 else "High"
+
+    return {"score": score, "level": level, "drivers": drivers}
+
+# ================= MARKET =================
+def market(premium, age):
+    return {
+        "min": round(premium * 0.88),
+        "max": round(premium * 1.12),
+        "percentile": 45 if age < 30 else 55 if age < 45 else 48,
+        "confidence": 12
+    }
+
+# ================= API ROUTES =================
 @app.route("/calculate", methods=["POST"])
-@validate_policy_input
-@handle_errors
 def calculate():
-    policy = request.policy_input
-    
-    premium = calculate_base_premium(
-        policy.age, policy.gender, policy.smoker,
-        policy.income, policy.coverage, policy.term
-    )
-    
-    risk = calculate_risk_score(
-        policy.age, policy.smoker,
-        policy.coverage, policy.income, policy.term
-    )
-    
-    market_data = get_market_comparison(premium, policy.age)
-    insurers, note = insurer_match(risk.score, policy.smoker)
-    underwriting = create_underwriting_summary(
-        premium, risk, policy.age, policy.coverage, policy.income
-    )
-    
+    d = request.json
+    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
+    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
+    market_data = market(prem, d["age"])
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
+
     return jsonify({
-        "premium": premium,
-        "risk": asdict(risk),
+        "premium": prem,
+        "risk": risk,
         "market": market_data,
         "insurers": insurers,
         "insurer_note": note,
-        "underwriting": asdict(underwriting)
+        "underwriting": under
     })
 
 @app.route("/generate-report", methods=["POST"])
-@validate_policy_input
-@handle_errors
-def generate_report():
-    policy = request.policy_input
-    
-    premium = calculate_base_premium(
-        policy.age, policy.gender, policy.smoker,
-        policy.income, policy.coverage, policy.term
-    )
-    
-    risk = calculate_risk_score(
-        policy.age, policy.smoker,
-        policy.coverage, policy.income, policy.term
-    )
-    
-    insurers, note = insurer_match(risk.score, policy.smoker)
-    underwriting = create_underwriting_summary(
-        premium, risk, policy.age, policy.coverage, policy.income
-    )
-    
+def report():
+    d = request.json
+
+    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
+    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
+    insurers, note = insurer_match(risk["score"], d["smoker"])
+    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
-    
     story = []
-    story.append(Paragraph("VETTIFY UNDERWRITING REPORT", styles["Heading1"]))
+
+    story.append(Paragraph("VETTIFY UNDERWRITING REPORT", styles["Title"]))
     story.append(Spacer(1, 0.2*inch))
-    story.append(Paragraph(f"<b>Risk:</b> {underwriting.risk_score} / 100", styles["Normal"]))
-    story.append(Paragraph(f"<b>Insight:</b> {underwriting.risk_explanation}", styles["Normal"]))
+
+    story.append(Paragraph(f"<b>Risk Score:</b> {under['risk_score']} / 100", styles["Normal"]))
+    story.append(Paragraph(f"<b>Insight:</b> {under['risk_explanation']}", styles["Normal"]))
     story.append(Spacer(1, 0.1*inch))
-    story.append(Paragraph(f"<b>Premium:</b> R{premium}", styles["Normal"]))
-    story.append(Paragraph(
-        f"Range: R{underwriting.confidence_range['low']} – R{underwriting.confidence_range['high']} ({underwriting.confidence_range['confidence']})",
-        styles["Normal"]
-    ))
+
+    story.append(Paragraph(f"<b>Premium Estimate:</b> R{prem} / month", styles["Normal"]))
+    story.append(Paragraph(f"Range: R{under['confidence_range']['low']} – R{under['confidence_range']['high']} ({under['confidence_range']['confidence']})", styles["Normal"]))
     story.append(Spacer(1, 0.1*inch))
-    story.append(Paragraph(f"<b>Coverage Ratio:</b> {underwriting.coverage_ratio}", styles["Normal"]))
-    story.append(Paragraph(underwriting.coverage_interpretation, styles["Normal"]))
+
+    story.append(Paragraph(f"<b>Coverage Ratio:</b> {under['coverage_ratio']}", styles["Normal"]))
+    story.append(Paragraph(under["coverage_interpretation"], styles["Normal"]))
     story.append(Spacer(1, 0.2*inch))
-    story.append(Paragraph("<b>Insurers:</b> " + ", ".join(insurers), styles["Normal"]))
+
+    story.append(Paragraph("<b>Recommended Insurers:</b> " + ", ".join(insurers), styles["Normal"]))
     story.append(Paragraph(note, styles["Normal"]))
-    
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph("This report expires in 7 days. Not a binding quote.", styles["Italic"]))
+
     doc.build(story)
     buffer.seek(0)
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"vettify_report_{timestamp}.pdf"
-    
-    return send_file(
-        buffer,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/pdf'
-    )
 
-# ================= NEW DASHBOARD ROUTES =================
-@app.route("/")
-@app.route("/dashboard")
-def dashboard():
-    """Serve the main dashboard"""
-    with open('dashboard.html', 'r') as f:
-        return f.read()
+    return send_file(buffer, as_attachment=True, download_name=f"vettify_report_{d['age']}.pdf")
 
-@app.route("/api/stats", methods=["GET"])
-@handle_errors
-def get_stats():
-    """Get system statistics for dashboard"""
-    with get_db() as conn:
-        cursor = conn.execute("SELECT COUNT(*) as total, SUM(count) as total_calc FROM usage")
-        stats = cursor.fetchone()
-        
-        cursor = conn.execute("""
-            SELECT COUNT(*) as today_count 
-            FROM usage 
-            WHERE last_use >= date('now', '-1 day')
-        """)
-        today = cursor.fetchone()
-        
-        return jsonify({
-            "total_users": stats['total'] or 0,
-            "total_calculations": stats['total_calc'] or 0,
-            "today_quotes": today['today_count'] or 0,
-            "timestamp": datetime.now().isoformat()
-        })
+# ================= FRONTEND =================
+@app.route('/')
+def home():
+    return render_template_string('''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vettify PreCheck | Decision Intelligence System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        .navbar { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 0; position: sticky; top: 0; z-index: 100; }
+        .nav-container { max-width: 1280px; margin: 0 auto; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 24px; font-weight: 800; color: #0a2540; text-decoration: none; }
+        .logo span { font-weight: 400; color: #5b6e8c; }
+        .btn-outline { padding: 8px 20px; border: 1.5px solid #0a2540; border-radius: 30px; background: transparent; color: #0a2540; font-weight: 600; cursor: pointer; }
+        .hero { background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; padding: 60px 32px; text-align: center; }
+        .hero h1 { font-size: 48px; font-weight: 800; margin-bottom: 16px; }
+        .hero p { font-size: 18px; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .hero-badge { background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 12px; margin-bottom: 24px; }
+        .main-container { max-width: 1280px; margin: -40px auto 48px; padding: 0 32px; display: grid; grid-template-columns: 1fr 0.9fr; gap: 32px; }
+        .form-card { background: white; border-radius: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); overflow: hidden; }
+        .form-header { padding: 28px 32px; border-bottom: 1px solid #eef2f6; }
+        .form-header h2 { font-size: 22px; font-weight: 700; color: #0a2540; }
+        .form-body { padding: 32px; }
+        .form-group { margin-bottom: 24px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #1a2c3e; font-size: 13px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 14px; font-size: 15px; }
+        .radio-group { display: flex; gap: 32px; margin-top: 8px; }
+        .radio-group label { display: flex; align-items: center; font-weight: 500; gap: 10px; cursor: pointer; }
+        .row-group { display: flex; gap: 16px; }
+        .row-group .form-group { flex: 1; }
+        .inline-group { display: flex; gap: 12px; }
+        .inline-group select { flex: 2; }
+        .inline-group input { flex: 1; }
+        .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; border: none; border-radius: 16px; font-weight: 700; cursor: pointer; margin-top: 16px; }
+        .result-card { background: white; border-radius: 28px; padding: 32px; position: sticky; top: 100px; }
+        .result-score { text-align: center; padding: 24px; background: #f8fafc; border-radius: 20px; margin-bottom: 24px; }
+        .score-number { font-size: 64px; font-weight: 800; }
+        .premium-box { background: #f0fdf4; padding: 16px; border-radius: 16px; text-align: center; }
+        .premium-amount { font-size: 28px; font-weight: 800; color: #16a34a; }
+        .drivers-list { background: #f8fafc; border-radius: 16px; padding: 20px; margin: 16px 0; }
+        .driver-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }
+        .driver-impact-neg { color: #dc2626; font-weight: 600; }
+        .driver-impact-pos { color: #16a34a; font-weight: 600; }
+        .paywall { background: #fef3c7; border-radius: 20px; padding: 24px; text-align: center; margin-top: 24px; }
+        .paywall-price { font-size: 32px; font-weight: 800; margin: 16px 0; }
+        .btn-pay { width: 100%; padding: 14px; background: #0070ba; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .value-badge { background: #e8f0fe; border-radius: 12px; padding: 12px; margin: 16px 0; text-align: center; }
+        .hidden { display: none; }
+        .loading { text-align: center; padding: 40px; }
+        .error { color: #dc2626; padding: 12px; background: #fee2e2; border-radius: 12px; margin-top: 16px; display: none; }
+        .footer { text-align: center; padding: 48px; color: #8a9bb0; border-top: 1px solid #e2e8f0; margin-top: 48px; }
+        @media (max-width: 900px) { .main-container { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="/" class="logo">VETTIFY <span>PreCheck</span></a><button class="btn-outline" onclick="alert('Broker Access: R1,999/month\\nContact: hello@vettifyprecheck.com')">For Brokers →</button></div></nav>
+    <div class="hero"><div class="hero-badge">⚡ Decision Intelligence System</div><h1>Know before you apply</h1><p>Risk breakdown • Insurer matching • Market benchmarks</p></div>
+    <div class="main-container">
+        <div class="form-card">
+            <div class="form-header"><h2>Client Assessment</h2></div>
+            <div class="form-body">
+                <form id="assessmentForm">
+                    <div class="row-group"><div class="form-group"><label>Age</label><input type="number" id="age" required min="18" max="80" placeholder="35"></div><div class="form-group"><label>Gender</label><select id="gender"><option value="male">Male</option><option value="female">Female</option></select></div></div>
+                    <div class="form-group"><label>Smoker</label><div class="radio-group"><label><input type="radio" name="smoker" value="yes"> Yes</label><label><input type="radio" name="smoker" value="no" checked> No</label></div></div>
+                    <div class="form-group"><label>Annual Income (ZAR)</label><input type="number" id="income" required placeholder="500000"></div>
+                    <div class="form-group"><label>Coverage Amount (ZAR)</label><div class="inline-group"><select id="coverage_preset"><option value="1000000">R1,000,000</option><option value="2000000">R2,000,000</option><option value="3000000">R3,000,000</option><option value="5000000">R5,000,000</option><option value="10000000">R10,000,000</option><option value="custom">Custom</option></select><input type="number" id="coverage_custom" placeholder="Enter amount" style="display:none"></div></div>
+                    <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10</option><option value="15">15</option><option value="20" selected>20</option><option value="25">25</option><option value="30">30</option><option value="custom">Custom</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display:none"></div></div>
+                    <div class="form-group"><label>Your Email</label><input type="email" id="email" required placeholder="broker@example.com"></div>
+                    <button type="submit" class="btn-primary" id="calculateBtn">Analyze Risk Profile →</button>
+                </form>
+                <div class="error" id="error"></div>
+            </div>
+        </div>
+        <div class="result-card" id="resultCard">
+            <div id="freeResult">
+                <div class="result-score"><div class="score-number" id="riskScore">—</div><div class="score-label">Risk Score (0-100)</div><div id="riskExplanation" style="margin-top: 8px; font-size: 13px;"></div></div>
+                <div><h4>Risk Drivers</h4><div id="driversContainer" class="drivers-list">Complete the form to see analysis</div></div>
+                <div><h4>Premium Estimate</h4><div id="premiumText">—</div><div id="confidenceRange" style="font-size: 12px;"></div></div>
+                <div><h4>Insurer Matching</h4><div id="insurerText">—</div><div id="insurerNote" style="font-size: 12px;"></div></div>
+                <div><h4>Coverage Ratio</h4><div id="coverageRatio">—</div><div id="coverageInterpretation" style="font-size: 12px;"></div></div>
+                <div class="value-badge" id="valueBadge" style="display:none;">💰 Market Value: R500 - R1,500<br>You're getting this for only R49</div>
+                <div class="paywall" id="paywall"><h3>🔓 Unlock Full Intelligence Report</h3><div class="paywall-price">R49</div><button class="btn-pay" id="payBtn">Download Full Report →</button></div>
+            </div>
+            <div id="loadingResult" class="loading hidden">⏳ Analyzing...</div>
+        </div>
+    </div>
+    <div class="footer"><p>Vettify PreCheck · Gompertz-Makeham Actuarial Model</p></div>
+    <script>
+        let currentFormData = null;
+        const coveragePreset = document.getElementById('coverage_preset');
+        const coverageCustom = document.getElementById('coverage_custom');
+        const termPreset = document.getElementById('term_preset');
+        const termCustom = document.getElementById('term_custom');
+        coveragePreset.addEventListener('change', function() { coverageCustom.style.display = this.value === 'custom' ? 'block' : 'none'; });
+        termPreset.addEventListener('change', function() { termCustom.style.display = this.value === 'custom' ? 'block' : 'none'; });
+        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            if (!email) { showError('Please enter your email'); return; }
+            const btn = document.getElementById('calculateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Analyzing...';
+            document.getElementById('loadingResult').classList.remove('hidden');
+            document.getElementById('freeResult').classList.add('hidden');
+            const termYears = termPreset.value === 'custom' ? parseInt(termCustom.value) : parseInt(termPreset.value);
+            const coverageAmount = coveragePreset.value === 'custom' ? parseInt(coverageCustom.value) : parseInt(coveragePreset.value);
+            const formData = { age: parseInt(document.getElementById('age').value), gender: document.getElementById('gender').value, smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes', income: parseInt(document.getElementById('income').value), coverage: coverageAmount, term: termYears, email: email };
+            currentFormData = formData;
+            try {
+                const res = await fetch('/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+                const data = await res.json();
+                document.getElementById('riskScore').innerHTML = data.risk.score;
+                document.getElementById('riskScore').style.color = data.risk.score >= 70 ? '#16a34a' : (data.risk.score >= 40 ? '#ea580c' : '#dc2626');
+                document.getElementById('riskExplanation').innerHTML = data.underwriting.risk_explanation;
+                let driversHtml = '';
+                for (let d of data.risk.drivers) { driversHtml += `<div class="driver-item"><span>${d.factor}</span><span class="${d.impact < 0 ? 'driver-impact-neg' : (d.impact > 0 ? 'driver-impact-pos' : '')}">${d.impact > 0 ? '+' : ''}${d.impact}</span></div><div style="font-size: 11px; color: #666; margin-bottom: 8px;">${d.explanation}</div>`; }
+                document.getElementById('driversContainer').innerHTML = driversHtml || 'No significant risk factors';
+                document.getElementById('premiumText').innerHTML = `<div class="premium-box"><span class="premium-amount">R${data.premium} - R${Math.round(data.premium * 1.12)}</span><br><small>/ month</small></div>`;
+                document.getElementById('confidenceRange').innerHTML = `Confidence: ${data.underwriting.confidence_range.confidence} (R${data.underwriting.confidence_range.low} - R${data.underwriting.confidence_range.high})`;
+                document.getElementById('insurerText').innerHTML = data.insurers.join(', ');
+                document.getElementById('insurerNote').innerHTML = data.insurer_note;
+                document.getElementById('coverageRatio').innerHTML = data.underwriting.coverage_ratio;
+                document.getElementById('coverageInterpretation').innerHTML = data.underwriting.coverage_interpretation;
+                document.getElementById('valueBadge').style.display = 'block';
+                document.getElementById('freeResult').classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Analyze Risk Profile →';
+                document.getElementById('loadingResult').classList.add('hidden');
+            } catch(err) { showError('Error analyzing. Please try again.'); resetButton(btn); }
+            function showError(msg) { const errDiv = document.getElementById('error'); errDiv.textContent = msg; errDiv.style.display = 'block'; setTimeout(() => errDiv.style.display = 'none', 4000); }
+            function resetButton(btn) { btn.disabled = false; btn.textContent = 'Analyze Risk Profile →'; document.getElementById('loadingResult').classList.add('hidden'); }
+        });
+        document.getElementById('payBtn').addEventListener('click', async () => {
+            if (!currentFormData) { alert('Please calculate a risk profile first'); return; }
+            const btn = document.getElementById('payBtn');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/generate-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentFormData) });
+                if (!res.ok) throw new Error('Failed');
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `vettify_report_${currentFormData.age}.pdf`;
+                a.click();
+                URL.revokeObjectURL(url);
+                alert('✅ Report downloaded!');
+            } catch(err) { alert('Error: ' + err.message); }
+            btn.textContent = 'Download Full Report →';
+            btn.disabled = false;
+        });
+    </script>
+</body>
+</html>
+    ''')
 
-@app.route("/api/compare", methods=["POST"])
-@validate_policy_input
-@handle_errors
-def compare_scenarios():
-    """Compare multiple scenarios"""
-    policy = request.policy_input
-    scenarios = []
-    
-    coverage_options = [policy.coverage * 0.5, policy.coverage, policy.coverage * 1.5]
-    
-    for cov in coverage_options:
-        premium = calculate_base_premium(
-            policy.age, policy.gender, policy.smoker,
-            policy.income, cov, policy.term
-        )
-        scenarios.append({
-            "coverage": cov,
-            "premium": premium,
-            "ratio": round(cov / policy.income, 1)
-        })
-    
-    return jsonify({
-        "base_scenario": asdict(policy),
-        "comparisons": scenarios
-    })
-
-# ================= RUN APPLICATION =================
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
