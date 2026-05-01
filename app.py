@@ -11,6 +11,7 @@ import os
 import uuid
 import math
 import sqlite3
+import json
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
@@ -26,11 +27,15 @@ def get_db():
 
 def init_db():
     conn = get_db()
-    conn.execute("""CREATE TABLE IF NOT EXISTS usage (
-        email TEXT PRIMARY KEY,
-        count INTEGER DEFAULT 0,
-        paid BOOLEAN DEFAULT 0,
-        first_use TEXT
+    conn.execute("""CREATE TABLE IF NOT EXISTS applications (
+        id TEXT PRIMARY KEY,
+        full_name TEXT,
+        email TEXT,
+        linkedin_url TEXT,
+        visibility_level TEXT,
+        risk_description TEXT,
+        status TEXT DEFAULT 'pending',
+        submitted_at TEXT
     )""")
     conn.commit()
     conn.close()
@@ -80,140 +85,33 @@ def premium_calc(age, gender, smoker, income, coverage, term):
     if ratio > 4: p *= 1 + min(0.6, (ratio - 4) * 0.1)
     return max(80, min(15000, round(p)))
 
-# ================= UNDERWRITING ENGINE =================
-def risk_explanation(score):
-    if score >= 70:
-        return "This profile would typically proceed through standard underwriting with preferred rates. No significant mortality risk factors identified."
-    elif score >= 40:
-        return "This profile qualifies for standard underwriting, though additional medical disclosure may be requested depending on final documentation."
-    return "This profile requires specialist underwriting. Expect medical evidence requirements and possible loading."
-
-def insurer_match(score, smoker):
-    if smoker:
-        return ["Momentum", "BrightRock"], "Specialist underwriting applies. Smoker-specific pricing."
-    if score >= 70:
-        return ["Discovery", "Momentum", "Old Mutual", "Sanlam"], "Preferred underwriting bands available. Straight-through approval likely."
-    if score >= 40:
-        return ["Old Mutual", "Momentum"], "Standard underwriting expected with normal processing."
-    return ["Hollard", "BrightRock"], "Non-standard underwriting. Medical evidence required."
-
-def underwriting_summary(premium, risk, age, coverage, income):
-    ratio = coverage / income if income else 0
-    return {
-        "risk_score": risk["score"],
-        "risk_level": risk["level"],
-        "risk_explanation": risk_explanation(risk["score"]),
-        "premium": premium,
-        "confidence_range": {"low": int(premium * 0.88), "high": int(premium * 1.12), "confidence": "±12%"},
-        "coverage_ratio": f"{round(ratio, 1)}x income",
-        "coverage_interpretation": "Within industry norms" if ratio <= 4 else "Above guideline threshold" if ratio <= 8 else "Significantly above guidelines"
-    }
-
 def risk_score(age, smoker, coverage, income, term):
     score = 70
     drivers = []
     if smoker:
         score -= 30
-        drivers.append({"factor": "Tobacco Use", "impact": -30, "explanation": "Smoking increases mortality risk by approximately 2x-2.5x depending on age"})
+        drivers.append({"factor": "Tobacco Use", "impact": -30, "explanation": "Increases mortality risk by approximately 2x-2.5x"})
     if age > 55:
         score -= 12
-        drivers.append({"factor": f"Age {age}", "impact": -12, "explanation": "Advanced age increases baseline mortality according to Gompertz-Makeham curve"})
+        drivers.append({"factor": f"Age {age}", "impact": -12, "explanation": "Advanced age increases baseline mortality"})
     elif age < 30:
         score += 5
-        drivers.append({"factor": f"Age {age}", "impact": 5, "explanation": "Young age provides favourable baseline mortality"})
+        drivers.append({"factor": f"Age {age}", "impact": 5, "explanation": "Young age provides favourable mortality"})
     ratio = coverage / income if income else 0
     if ratio > 8:
         score -= 15
-        drivers.append({"factor": "High Coverage/Income", "impact": -15, "explanation": f"Coverage is {ratio:.1f}x income — exceeds typical industry guidelines of 5x"})
+        drivers.append({"factor": "High Coverage/Income", "impact": -15, "explanation": f"Coverage is {ratio:.1f}x income — exceeds guidelines"})
     elif ratio > 6:
         score -= 10
-        drivers.append({"factor": "Elevated Coverage/Income", "impact": -10, "explanation": f"Coverage is {ratio:.1f}x income — may trigger anti-selection review"})
-    elif ratio > 4:
-        score -= 5
-        drivers.append({"factor": "Moderate Coverage/Income", "impact": -5, "explanation": f"Coverage is {ratio:.1f}x income — near industry guideline threshold"})
+        drivers.append({"factor": "Elevated Coverage/Income", "impact": -10, "explanation": f"Coverage is {ratio:.1f}x income — may trigger review"})
     if term > 25:
         score -= 5
-        drivers.append({"factor": "Extended Term", "impact": -5, "explanation": "Term exceeding 25 years adds long-term mortality uncertainty"})
+        drivers.append({"factor": "Extended Term", "impact": -5, "explanation": "Term >25 years adds long-term uncertainty"})
     score = max(10, min(95, score))
     level = "Low" if score >= 70 else "Moderate" if score >= 40 else "High"
     return {"score": score, "level": level, "drivers": drivers}
 
-# ================= API ROUTES =================
-@app.route("/calculate", methods=["POST"])
-def calculate():
-    d = request.json
-    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
-    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
-    insurers, note = insurer_match(risk["score"], d["smoker"])
-    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
-    return jsonify({"premium": prem, "risk": risk, "insurers": insurers, "insurer_note": note, "underwriting": under})
-
-@app.route("/generate-report", methods=["POST"])
-def report():
-    d = request.json
-    prem = premium_calc(d["age"], d["gender"], d["smoker"], d["income"], d["coverage"], d["term"])
-    risk = risk_score(d["age"], d["smoker"], d["coverage"], d["income"], d["term"])
-    insurers, note = insurer_match(risk["score"], d["smoker"])
-    under = underwriting_summary(prem, risk, d["age"], d["coverage"], d["income"])
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=72, bottomMargin=72)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    # Professional Header
-    story.append(Paragraph("VETTIFY PRECHECK", ParagraphStyle('Title', parent=styles['Title'], fontSize=24, textColor=colors.HexColor('#0a2540'), alignment=1, spaceAfter=6)))
-    story.append(Paragraph("Pre-Underwriting Intelligence Report", ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10, textColor=colors.grey, alignment=1)))
-    story.append(Spacer(1, 0.2*inch))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0a2540')))
-    story.append(Spacer(1, 0.2*inch))
-    
-    # Executive Summary
-    story.append(Paragraph("EXECUTIVE SUMMARY", styles['Heading2']))
-    story.append(Paragraph(f"This actuarial assessment indicates a {risk['level'].lower()} risk profile with a score of {risk['score']}/100. {under['risk_explanation']}", styles['Normal']))
-    story.append(Spacer(1, 0.15*inch))
-    
-    # Risk Score
-    story.append(Paragraph("RISK ASSESSMENT", styles['Heading2']))
-    risk_color = colors.HexColor('#16a34a' if risk['score'] >= 70 else '#ea580c' if risk['score'] >= 40 else '#dc2626')
-    story.append(Paragraph(f"{risk['score']}<font size=10>/100</font>", ParagraphStyle('Score', parent=styles['Normal'], fontSize=48, textColor=risk_color, alignment=0, spaceAfter=6)))
-    story.append(Spacer(1, 0.1*inch))
-    
-    # Premium
-    story.append(Paragraph("PREMIUM ESTIMATE", styles['Heading2']))
-    story.append(Paragraph(f"<b>R{prem} - R{round(prem * 1.12)} per month</b>", styles['Normal']))
-    story.append(Paragraph(f"Confidence interval: ±12% (R{under['confidence_range']['low']} – R{under['confidence_range']['high']})", styles['Normal']))
-    story.append(Paragraph("Estimate assumes standard underwriting with disclosed risk factors.", styles['Italic']))
-    story.append(Spacer(1, 0.15*inch))
-    
-    # Risk Drivers
-    story.append(Paragraph("UNDERWRITING FACTORS", styles['Heading2']))
-    for d in risk['drivers']:
-        story.append(Paragraph(f"• <b>{d['factor']}</b>: {d['explanation']}", styles['Normal']))
-        story.append(Spacer(1, 0.05*inch))
-    story.append(Spacer(1, 0.1*inch))
-    
-    # Insurer Recommendations
-    story.append(Paragraph("INSURER RECOMMENDATIONS", styles['Heading2']))
-    story.append(Paragraph(f"<b>Recommended:</b> {', '.join(insurers)}", styles['Normal']))
-    story.append(Paragraph(f"<b>Underwriting Expectation:</b> {note}", styles['Normal']))
-    story.append(Spacer(1, 0.15*inch))
-    
-    # Methodology
-    story.append(Paragraph("METHODOLOGY", styles['Heading2']))
-    story.append(Paragraph("Assessment uses Gompertz-Makeham mortality model (μ(x) = A + B·e^(C·x)), calibrated to South African mortality tables. Expected Present Value (EPV) calculation with 6% discount rate, monthly step consistency.", ParagraphStyle('Method', parent=styles['Normal'], fontSize=8, textColor=colors.grey)))
-    story.append(Spacer(1, 0.15*inch))
-    
-    # Disclaimer
-    story.append(Paragraph("DISCLAIMER", styles['Heading2']))
-    story.append(Paragraph("This report is for informational purposes only and does not constitute a binding offer. Valid for 7 days from generation date. Full underwriting required for final approval.", ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=7, textColor=colors.grey)))
-    story.append(Spacer(1, 0.1*inch))
-    story.append(Paragraph(f"Report ID: {str(uuid.uuid4())[:8]} | Expires: {(datetime.now() + timedelta(days=7)).strftime('%d %B %Y')}", ParagraphStyle('Footer', parent=styles['Normal'], fontSize=7, textColor=colors.grey, alignment=1)))
-    
-    doc.build(story)
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name=f"vettify_intelligence_report.pdf")
-
+# ================= LUXURY ROUTES =================
 @app.route('/')
 def home():
     return render_template_string('''
@@ -222,196 +120,277 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vettify PreCheck | Pre-Underwriting Intelligence</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Vettify | Private Reputation Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #0a2540; --secondary: #1b4d3e; --accent: #0070ba; --gold: #c9a03d; }
+        :root {
+            --gold: #c9a03d;
+            --gold-light: #e8d5a3;
+            --dark: #0a1628;
+            --charcoal: #1a2a3a;
+            --cream: #faf8f5;
+            --paper: #f5f2eb;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f5f7fa; color: #1a2c3e; }
+        body { font-family: 'Inter', sans-serif; background: var(--cream); color: var(--dark); line-height: 1.5; }
         
-        /* Premium Navbar */
-        .navbar { background: white; border-bottom: 1px solid rgba(0,0,0,0.05); padding: 20px 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
-        .nav-container { max-width: 1280px; margin: 0 auto; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 22px; font-weight: 700; color: var(--primary); text-decoration: none; letter-spacing: -0.3px; }
-        .logo span { font-weight: 400; color: #5b6e8c; }
-        .trust-badge { background: #f0fdf4; color: #16a34a; padding: 6px 14px; border-radius: 40px; font-size: 11px; font-weight: 600; }
+        /* Luxury Elements */
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 48px; }
+        .gold-text { color: var(--gold); }
+        .gold-border { border-bottom: 2px solid var(--gold); display: inline-block; padding-bottom: 4px; }
         
-        /* Hero Section */
-        .hero { background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; padding: 80px 32px; text-align: center; position: relative; }
-        .hero-badge { background: rgba(255,255,255,0.12); backdrop-filter: blur(4px); display: inline-block; padding: 6px 16px; border-radius: 40px; font-size: 12px; font-weight: 500; margin-bottom: 24px; letter-spacing: 0.5px; }
-        .hero h1 { font-size: 56px; font-weight: 700; margin-bottom: 20px; letter-spacing: -1px; line-height: 1.2; }
-        .hero p { font-size: 18px; opacity: 0.85; max-width: 600px; margin: 0 auto; line-height: 1.6; }
-        .hero-meta { margin-top: 32px; display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
-        .hero-meta span { font-size: 13px; opacity: 0.7; }
+        /* Navigation */
+        .navbar { padding: 32px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .navbar .container { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; letter-spacing: 2px; color: var(--dark); text-decoration: none; }
+        .logo span { font-weight: 300; color: var(--gold); }
+        .nav-links { display: flex; gap: 48px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--dark); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; font-weight: 500; }
+        .badge { background: var(--gold-light); color: var(--dark); padding: 4px 12px; border-radius: 30px; font-size: 10px; letter-spacing: 1px; }
         
-        /* Main Layout */
-        .main-container { max-width: 1280px; margin: -50px auto 60px; padding: 0 32px; display: grid; grid-template-columns: 1fr 0.85fr; gap: 40px; }
+        /* Hero */
+        .hero { padding: 120px 0 80px 0; text-align: center; background: linear-gradient(135deg, #faf8f5 0%, #f5f2eb 100%); }
+        .hero-badge { display: inline-block; color: var(--gold); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 24px; }
+        .hero h1 { font-family: 'Cormorant Garamond', serif; font-size: 64px; font-weight: 500; line-height: 1.2; max-width: 800px; margin: 0 auto 24px; letter-spacing: -0.5px; }
+        .hero p { font-size: 18px; color: #4a5a6a; max-width: 600px; margin: 0 auto 32px; font-weight: 300; }
+        .btn-primary { background: var(--dark); color: white; border: none; padding: 16px 40px; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; font-weight: 500; cursor: pointer; transition: all 0.3s; border-radius: 0; }
+        .btn-primary:hover { background: var(--gold); color: var(--dark); }
+        .btn-outline { background: transparent; border: 1px solid var(--dark); color: var(--dark); padding: 14px 36px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; margin-left: 16px; border-radius: 0; }
+        .trust-strip { margin-top: 64px; display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; }
+        .trust-strip span { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #8a9bb0; }
         
-        /* Form Card - Professional */
-        .form-card { background: white; border-radius: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); overflow: hidden; }
-        .form-header { padding: 28px 32px; border-bottom: 1px solid #eef2f6; background: white; }
-        .form-header h2 { font-size: 20px; font-weight: 600; color: var(--primary); }
-        .form-header p { font-size: 13px; color: #5b6e8c; margin-top: 6px; }
-        .form-body { padding: 32px; }
-        .form-group { margin-bottom: 24px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; color: #1a2c3e; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        input, select { width: 100%; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 14px; font-size: 15px; transition: all 0.2s; background: white; }
-        input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(10,37,64,0.08); }
-        .radio-group { display: flex; gap: 32px; margin-top: 8px; }
-        .radio-group label { display: flex; align-items: center; font-weight: 500; text-transform: none; gap: 10px; cursor: pointer; }
-        .row-group { display: flex; gap: 16px; }
-        .row-group .form-group { flex: 1; }
-        .inline-group { display: flex; gap: 12px; }
-        .inline-group select { flex: 2; }
-        .inline-group input { flex: 1; }
-        .form-note { font-size: 11px; color: #8a9bb0; margin-top: 6px; }
-        .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; border: none; border-radius: 16px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: all 0.2s; }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(10,37,64,0.2); }
+        /* Problem Section */
+        .problem { background: var(--paper); padding: 100px 0; text-align: center; }
+        .problem h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 40px; }
+        .problem p { max-width: 700px; margin: 0 auto; font-size: 18px; color: #4a5a6a; line-height: 1.7; }
         
-        /* Result Card - Premium */
-        .result-card { background: white; border-radius: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); padding: 32px; position: sticky; top: 100px; }
-        .risk-score-container { text-align: center; padding: 28px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 24px; margin-bottom: 28px; }
-        .risk-score-number { font-size: 72px; font-weight: 800; line-height: 1; }
-        .risk-score-label { font-size: 13px; color: #5b6e8c; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
-        .section-title { font-size: 13px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; border-left: 3px solid var(--gold); padding-left: 12px; }
-        .premium-box { background: #f0fdf4; padding: 20px; border-radius: 20px; text-align: center; margin: 20px 0; border: 1px solid #d1fae5; }
-        .premium-amount { font-size: 32px; font-weight: 800; color: #16a34a; }
-        .driver-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f4f8; }
-        .driver-impact-neg { color: #dc2626; font-weight: 600; }
-        .driver-impact-pos { color: #16a34a; font-weight: 600; }
+        /* Pricing Cards */
+        .pricing { padding: 100px 0; background: var(--cream); }
+        .pricing h2 { text-align: center; font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 16px; }
+        .pricing-sub { text-align: center; color: #8a9bb0; margin-bottom: 60px; font-size: 14px; letter-spacing: 1px; }
+        .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+        .pricing-card { background: white; padding: 40px 28px; border: 1px solid #e2e8f0; transition: all 0.3s; }
+        .pricing-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.08); border-color: var(--gold); }
+        .pricing-tier { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
+        .pricing-price { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 600; margin-bottom: 24px; }
+        .pricing-price small { font-size: 12px; font-weight: 300; color: #8a9bb0; }
+        .pricing-features { list-style: none; margin-bottom: 32px; }
+        .pricing-features li { padding: 8px 0; font-size: 13px; color: #4a5a6a; border-bottom: 1px solid #f0f0f0; }
+        .btn-card { width: 100%; background: transparent; border: 1px solid var(--dark); padding: 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; }
+        .btn-card:hover { background: var(--dark); color: white; }
+        .card-premium { border-top: 3px solid var(--gold); background: linear-gradient(135deg, white 0%, #fefcf8 100%); }
         
-        /* Paywall - Premium */
-        .paywall { background: linear-gradient(135deg, #fef9e6 0%, #fef3c7 100%); border-radius: 20px; padding: 28px; text-align: center; margin-top: 28px; border: 1px solid #fde68a; }
-        .paywall h3 { font-size: 18px; font-weight: 700; color: #92400e; margin-bottom: 12px; }
-        .paywall-price { font-size: 36px; font-weight: 800; color: var(--primary); margin: 16px 0; }
-        .btn-pay { width: 100%; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; transition: all 0.2s; }
-        .btn-pay:hover { background: #003087; transform: translateY(-1px); }
+        /* CTA */
+        .cta { background: var(--dark); color: white; padding: 80px 0; text-align: center; }
+        .cta h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 16px; }
+        .cta p { color: #8a9bb0; margin-bottom: 32px; }
+        .btn-cta { background: var(--gold); color: var(--dark); border: none; padding: 16px 48px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; cursor: pointer; }
         
-        .footer { text-align: center; padding: 48px 32px; color: #8a9bb0; border-top: 1px solid #e2e8f0; margin-top: 60px; font-size: 13px; }
-        .hidden { display: none; }
-        .loading { text-align: center; padding: 60px; background: #f8fafc; border-radius: 24px; }
-        .error { color: #dc2626; padding: 12px; background: #fee2e2; border-radius: 12px; margin-top: 16px; display: none; font-size: 13px; }
+        /* Footer */
+        .footer { padding: 48px 0; text-align: center; border-top: 1px solid #e2e8f0; color: #8a9bb0; font-size: 11px; letter-spacing: 1px; }
         
-        @media (max-width: 900px) { .main-container { grid-template-columns: 1fr; } .hero h1 { font-size: 36px; } .hero { padding: 50px 24px; } }
+        @media (max-width: 900px) { .container { padding: 0 24px; } .hero h1 { font-size: 42px; } .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } .trust-strip { gap: 24px; } }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-container">
-            <a href="/" class="logo">VETTIFY <span>PreCheck</span></a>
-            <div class="trust-badge">⚡ Actuarial Model: Gompertz-Makeham</div>
+        <div class="container">
+            <a href="/" class="logo">VETTIFY <span>INTELLIGENCE</span></a>
+            <div class="nav-links">
+                <span class="badge">Private Client Access Only</span>
+            </div>
         </div>
     </nav>
 
-    <div class="hero">
-        <div class="hero-badge">UNDERWRITING INTELLIGENCE</div>
-        <h1>Know before you submit</h1>
-        <p>Actuarial-grade pre-screening using South Africa's mortality benchmarks. Get insurer-matching, risk analysis, and professional underwriting reports.</p>
-        <div class="hero-meta"><span>✓ Gompertz-Makeham Mortality Model</span><span>✓ SA Life Tables Calibrated</span><span>✓ 20 Free Assessments</span></div>
-    </div>
-
-    <div class="main-container">
-        <div class="form-card">
-            <div class="form-header"><h2>Client Assessment</h2><p>This assessment simulates insurer underwriting logic using actuarial mortality modelling.</p></div>
-            <div class="form-body">
-                <form id="assessmentForm">
-                    <div class="row-group"><div class="form-group"><label>Age</label><input type="number" id="age" required min="18" max="80" placeholder="35"></div><div class="form-group"><label>Gender</label><select id="gender"><option value="male">Male</option><option value="female">Female</option></select></div></div>
-                    <div class="form-group"><label>Smoker Status</label><div class="radio-group"><label><input type="radio" name="smoker" value="yes"> Yes</label><label><input type="radio" name="smoker" value="no" checked> No</label></div><div class="form-note">Tobacco use significantly impacts mortality risk (+80-150% premium loading)</div></div>
-                    <div class="form-group"><label>Annual Income (ZAR)</label><input type="number" id="income" required placeholder="500000"><div class="form-note">Used for coverage-to-income ratio analysis (industry guideline: ≤5x annual income)</div></div>
-                    <div class="form-group"><label>Coverage Amount (ZAR)</label><div class="inline-group"><select id="coverage_preset"><option value="1000000">R1,000,000</option><option value="2000000">R2,000,000</option><option value="3000000">R3,000,000</option><option value="5000000">R5,000,000</option><option value="10000000">R10,000,000</option><option value="custom">Custom Amount</option></select><input type="number" id="coverage_custom" placeholder="Enter amount" style="display:none"></div></div>
-                    <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10 years</option><option value="15">15 years</option><option value="20" selected>20 years</option><option value="25">25 years</option><option value="30">30 years</option><option value="custom">Custom Term</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display:none"></div></div>
-                    <div class="form-group"><label>Email Address</label><input type="email" id="email" required placeholder="broker@example.com"><div class="form-note">Your report will be sent here ⸱ First 5 assessments free</div></div>
-                    <button type="submit" class="btn-primary" id="calculateBtn">Generate Underwriting Assessment →</button>
-                </form>
-                <div class="error" id="error"></div>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-badge">PERCEPTION INTELLIGENCE</div>
+            <h1>Know exactly how you'll be perceived — before the world does.</h1>
+            <p>Vettify is a private intelligence system for founders, executives, and public-facing individuals who cannot afford to be misjudged.</p>
+            <div>
+                <button class="btn-primary" onclick="openApplication()">Request Private Access</button>
+                <button class="btn-outline" onclick="showSample()">View Sample Report</button>
+            </div>
+            <div class="trust-strip">
+                <span>PRIVATE CLIENT ONBOARDING ONLY</span>
+                <span>LIMITED TO 20 ACTIVE CLIENTS</span>
+                <span>USED BY FOUNDERS & EXECUTIVES</span>
             </div>
         </div>
+    </section>
 
-        <div class="result-card" id="resultCard">
-            <div id="freeResult">
-                <div class="risk-score-container"><div class="risk-score-number" id="riskScore">—</div><div class="risk-score-label">Risk Score (0-100)</div><div id="riskExplanation" style="margin-top: 12px; font-size: 13px; color: #5b6e8c; line-height: 1.5;"></div></div>
-                <div><div class="section-title">Underwriting Factors</div><div id="driversContainer" class="drivers-list" style="margin-bottom: 20px;">Complete assessment to see analysis</div></div>
-                <div><div class="section-title">Premium Estimate</div><div id="premiumText">—</div><div id="confidenceRange" style="font-size: 12px; color: #5b6e8c; margin-top: 4px;"></div></div>
-                <div><div class="section-title">Insurer Matching</div><div id="insurerText" style="font-weight: 500;">—</div><div id="insurerNote" style="font-size: 12px; color: #5b6e8c; margin-top: 6px;"></div></div>
-                <div class="paywall" id="paywall"><h3>📄 Full Underwriting Report</h3><p>Actuarial methodology • Risk drivers • Insurer recommendations • Professional PDF</p><div class="paywall-price">R49</div><button class="btn-pay" id="payBtn">Download Intelligence Report →</button><p style="font-size: 11px; margin-top: 12px;">One-time payment · Instant download · Valid for 7 days</p></div>
-            </div>
-            <div id="loadingResult" class="loading hidden">⏳ Running actuarial assessment...</div>
+    <section class="problem">
+        <div class="container">
+            <h2>One misstep in public perception costs more than money.</h2>
+            <p>Most people only discover how they are perceived after it's too late. After a pitch fails. After a hiring rejection. After credibility is already questioned. Vettify exists to prevent that moment.</p>
         </div>
-    </div>
+    </section>
 
-    <div class="footer"><p>Vettify PreCheck · Gompertz-Makeham Actuarial Model · Calibrated to South African Mortality Tables</p><p style="margin-top: 8px;">Independent pre-underwriting intelligence — not a binding offer</p></div>
+    <section class="pricing">
+        <div class="container">
+            <h2>Private Intelligence Architecture</h2>
+            <div class="pricing-sub">Applications reviewed manually</div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-tier">PRIVATE REPORT</div>
+                    <div class="pricing-price">R2,500</div>
+                    <ul class="pricing-features">
+                        <li>Single perception audit</li>
+                        <li>Risk score & analysis</li>
+                        <li>Strategic recommendations</li>
+                        <li>One-time delivery</li>
+                    </ul>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-tier">PROFESSIONAL INTELLIGENCE</div>
+                    <div class="pricing-price">R7,500<span style="font-size:12px;">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>Monthly reputation audit</li>
+                        <li>Profile optimisation advice</li>
+                        <li>Competitor benchmarking</li>
+                        <li>Risk alerts</li>
+                    </ul>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+                <div class="pricing-card card-premium">
+                    <div class="pricing-tier">EXECUTIVE ADVISORY</div>
+                    <div class="pricing-price">R45,000<span style="font-size:12px;">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>Weekly reputation analysis</li>
+                        <li>Crisis risk simulation</li>
+                        <li>Human advisory layer</li>
+                        <li>Priority response</li>
+                    </ul>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+                <div class="pricing-card card-premium">
+                    <div class="pricing-tier">CONCIERGE INTELLIGENCE</div>
+                    <div class="pricing-price">R120,000<span style="font-size:12px;">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>Daily monitoring</li>
+                        <li>Human + AI hybrid advisory</li>
+                        <li>Direct access line</li>
+                        <li>Bespoke strategy reports</li>
+                    </ul>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Applications are reviewed manually to ensure client fit.</h2>
+            <p>Limited to 20 active clients</p>
+            <button class="btn-cta" onclick="openApplication()">Request Private Access →</button>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>VETTIFY INTELLIGENCE — PRIVATE PERCEPTION ADVISORY</p>
+            <p style="margin-top: 12px;">Not a public tool. By application only.</p>
+        </div>
+    </footer>
 
     <script>
-        let currentFormData = null;
-        const coveragePreset = document.getElementById('coverage_preset');
-        const coverageCustom = document.getElementById('coverage_custom');
-        const termPreset = document.getElementById('term_preset');
-        const termCustom = document.getElementById('term_custom');
-        coveragePreset.addEventListener('change', function() { coverageCustom.style.display = this.value === 'custom' ? 'block' : 'none'; });
-        termPreset.addEventListener('change', function() { termCustom.style.display = this.value === 'custom' ? 'block' : 'none'; });
-        
-        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+        function openApplication() {
+            window.location.href = '/apply';
+        }
+        function showSample() {
+            alert('Sample report available upon request. Please contact concierge@vettify.com');
+        }
+    </script>
+</body>
+</html>
+    ''')
+
+@app.route('/apply')
+def apply():
+    return render_template_string('''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vettify | Private Client Application</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #faf8f5; color: #0a1628; }
+        .container { max-width: 800px; margin: 0 auto; padding: 60px 32px; }
+        .logo { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; text-align: center; margin-bottom: 48px; text-decoration: none; color: #0a1628; display: block; }
+        .logo span { color: #c9a03d; }
+        .form-card { background: white; padding: 48px; border: 1px solid #e2e8f0; }
+        h1 { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 500; margin-bottom: 8px; }
+        .sub { color: #8a9bb0; margin-bottom: 32px; font-size: 13px; }
+        .form-group { margin-bottom: 24px; }
+        label { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+        input, select, textarea { width: 100%; padding: 14px 16px; border: 1px solid #e2e8f0; font-size: 15px; background: white; font-family: 'Inter', sans-serif; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a03d; }
+        .btn-submit { width: 100%; background: #0a1628; color: white; border: none; padding: 16px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 500; cursor: pointer; margin-top: 16px; }
+        .note { font-size: 11px; color: #8a9bb0; text-align: center; margin-top: 24px; }
+        @media (max-width: 600px) { .container { padding: 32px 20px; } .form-card { padding: 28px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="logo">VETTIFY <span>INTELLIGENCE</span></a>
+        <div class="form-card">
+            <h1>Private Client Application</h1>
+            <div class="sub">Applications are reviewed manually. Limited to 20 active clients.</div>
+            <form id="applicationForm">
+                <div class="form-group"><label>Full Name</label><input type="text" id="full_name" required></div>
+                <div class="form-group"><label>Email Address</label><input type="email" id="email" required></div>
+                <div class="form-group"><label>LinkedIn / Profile URL</label><input type="url" id="linkedin_url" placeholder="linkedin.com/in/..."></div>
+                <div class="form-group"><label>Visibility Level</label><select id="visibility_level"><option value="low">Low (private individual)</option><option value="medium">Medium (professional / founder)</option><option value="high">High (public-facing executive)</option><option value="public">Public Figure / Media Frequent</option></select></div>
+                <div class="form-group"><label>What is at stake if perception is wrong?</label><textarea id="risk_description" rows="3" placeholder="Please describe..."></textarea></div>
+                <button type="submit" class="btn-submit">Submit Application →</button>
+                <div class="note">Your application will be reviewed within 24 hours. Selected clients will receive onboarding details.</div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('applicationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value.trim();
-            if (!email) { showError('Please enter your email address'); return; }
-            const btn = document.getElementById('calculateBtn');
+            const btn = e.target.querySelector('.btn-submit');
+            btn.textContent = 'Submitting...';
             btn.disabled = true;
-            btn.textContent = 'Analyzing...';
-            document.getElementById('loadingResult').classList.remove('hidden');
-            document.getElementById('freeResult').classList.add('hidden');
-            const termYears = termPreset.value === 'custom' ? parseInt(termCustom.value) : parseInt(termPreset.value);
-            const coverageAmount = coveragePreset.value === 'custom' ? parseInt(coverageCustom.value) : parseInt(coveragePreset.value);
-            const age = parseInt(document.getElementById('age').value);
-            if (age < 18 || age > 80) { showError('Age must be between 18 and 80'); resetButton(btn); return; }
-            const formData = { age: age, gender: document.getElementById('gender').value, smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes', income: parseInt(document.getElementById('income').value), coverage: coverageAmount, term: termYears, email: email };
-            currentFormData = formData;
+            const formData = {
+                full_name: document.getElementById('full_name').value,
+                email: document.getElementById('email').value,
+                linkedin_url: document.getElementById('linkedin_url').value,
+                visibility_level: document.getElementById('visibility_level').value,
+                risk_description: document.getElementById('risk_description').value
+            };
             try {
-                const res = await fetch('/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-                const data = await res.json();
-                const riskColor = data.risk.score >= 70 ? '#16a34a' : (data.risk.score >= 40 ? '#ea580c' : '#dc2626');
-                document.getElementById('riskScore').innerHTML = data.risk.score;
-                document.getElementById('riskScore').style.color = riskColor;
-                document.getElementById('riskExplanation').innerHTML = data.underwriting.risk_explanation;
-                let driversHtml = '';
-                for (let d of data.risk.drivers) { driversHtml += `<div class="driver-item"><span>${d.factor}</span><span class="${d.impact < 0 ? 'driver-impact-neg' : (d.impact > 0 ? 'driver-impact-pos' : '')}">${d.impact > 0 ? '+' : ''}${d.impact}</span></div><div style="font-size: 11px; color: #5b6e8c; margin-top: -6px; margin-bottom: 12px;">${d.explanation}</div>`; }
-                document.getElementById('driversContainer').innerHTML = driversHtml;
-                document.getElementById('premiumText').innerHTML = `<div class="premium-box"><span class="premium-amount">R${data.premium} - R${Math.round(data.premium * 1.12)}</span><br><small>per month</small></div>`;
-                document.getElementById('confidenceRange').innerHTML = `Confidence interval: ±12% (R${data.underwriting.confidence_range.low} – R${data.underwriting.confidence_range.high})`;
-                document.getElementById('insurerText').innerHTML = data.insurers.join(' • ');
-                document.getElementById('insurerNote').innerHTML = data.insurer_note;
-                document.getElementById('freeResult').classList.remove('hidden');
-                btn.disabled = false;
-                btn.textContent = 'Generate Underwriting Assessment →';
-                document.getElementById('loadingResult').classList.add('hidden');
-            } catch(err) { showError('Error analyzing risk profile'); resetButton(btn); }
-            function showError(msg) { const errDiv = document.getElementById('error'); errDiv.textContent = msg; errDiv.style.display = 'block'; setTimeout(() => errDiv.style.display = 'none', 4000); }
-            function resetButton(btn) { btn.disabled = false; btn.textContent = 'Generate Underwriting Assessment →'; document.getElementById('loadingResult').classList.add('hidden'); }
-        });
-        
-        document.getElementById('payBtn').addEventListener('click', async () => {
-            if (!currentFormData) { alert('Please complete an assessment first'); return; }
-            const btn = document.getElementById('payBtn');
-            btn.textContent = 'Generating Report...';
-            btn.disabled = true;
-            try {
-                const res = await fetch('/generate-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentFormData) });
-                if (!res.ok) throw new Error('Failed');
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `vettify_intelligence_report.pdf`;
-                a.click();
-                URL.revokeObjectURL(url);
-                alert('✅ Intelligence report downloaded successfully');
-            } catch(err) { alert('Error generating report: ' + err.message); }
-            btn.textContent = 'Download Intelligence Report →';
+                const res = await fetch('/submit-application', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+                if (res.ok) {
+                    alert('Application received. We will review and respond within 24 hours.');
+                    window.location.href = '/';
+                } else {
+                    alert('Error submitting application. Please try again.');
+                }
+            } catch(err) { alert('Error submitting'); }
+            btn.textContent = 'Submit Application →';
             btn.disabled = false;
         });
     </script>
 </body>
 </html>
     ''')
+
+@app.route('/submit-application', methods=['POST'])
+def submit_application():
+    data = request.json
+    conn = get_db()
+    app_id = str(uuid.uuid4())[:8]
+    conn.execute('INSERT INTO applications (id, full_name, email, linkedin_url, visibility_level, risk_description, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                 (app_id, data['full_name'], data['email'], data['linkedin_url'], data['visibility_level'], data['risk_description'], datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'received'})
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
