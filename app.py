@@ -42,6 +42,55 @@ def init_db():
 
 init_db()
 
+# ================= SAMPLE REPORT DOWNLOAD =================
+@app.route('/download-sample-report')
+def download_sample_report():
+    """Download a real sample report - one-time preview"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=72, bottomMargin=72)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Professional header
+    story.append(Paragraph("VETTIFY INTELLIGENCE", ParagraphStyle('Title', parent=styles['Title'], fontSize=24, textColor=colors.HexColor('#0a1628'), alignment=1, spaceAfter=6)))
+    story.append(Paragraph("Sample Perception Audit Report", ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10, textColor=colors.grey, alignment=1)))
+    story.append(Spacer(1, 0.3*inch))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#c9a03d')))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Executive Summary
+    story.append(Paragraph("EXECUTIVE SUMMARY", styles['Heading2']))
+    story.append(Paragraph("This sample illustrates how Vettify evaluates public perception, credibility signals, and reputation risk for high-visibility individuals.", styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+    
+    # Perception Score
+    story.append(Paragraph("PERCEPTION SCORE", styles['Heading2']))
+    story.append(Paragraph("<b>72 / 100</b>", ParagraphStyle('Score', parent=styles['Normal'], fontSize=48, textColor=colors.HexColor('#c9a03d'), alignment=0, spaceAfter=6)))
+    story.append(Paragraph("Moderate perception strength. Gaps exist in authority signaling and consistent narrative positioning.", styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+    
+    # Risk Analysis
+    story.append(Paragraph("REPUTATION RISK ANALYSIS", styles['Heading2']))
+    story.append(Paragraph("• <b>Authority signals:</b> Weak LinkedIn presence reduces perceived credibility by ~15%", styles['Normal']))
+    story.append(Paragraph("• <b>Narrative consistency:</b> Mixed messaging across profiles creates confusion", styles['Normal']))
+    story.append(Paragraph("• <b>Media visibility:</b> Low editorial footprint limits discovery by opportunities", styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+    
+    # Recommendations
+    story.append(Paragraph("STRATEGIC RECOMMENDATIONS", styles['Heading2']))
+    story.append(Paragraph("1. Optimize LinkedIn headline to reflect decision-making authority", styles['Normal']))
+    story.append(Paragraph("2. Align narrative across public profiles (consistency = trust)", styles['Normal']))
+    story.append(Paragraph("3. Target 2-3 media placements within next 90 days", styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+    
+    # Disclaimer
+    story.append(Paragraph("This is a sample report only. Actual intelligence briefs are tailored to each client's specific visibility goals.", ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=7, textColor=colors.grey)))
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return send_file(buffer, as_attachment=True, download_name="vettify_sample_intelligence_report.pdf")
+
 # ================= LUXURY INTELLIGENCE HOMEPAGE =================
 @app.route('/')
 def home():
@@ -74,15 +123,15 @@ def home():
         .logo span { font-weight: 300; color: var(--gold); }
         .badge { background: var(--gold-light); color: var(--dark); padding: 4px 12px; border-radius: 30px; font-size: 10px; letter-spacing: 1px; }
         
-        /* Hero - Consequence-driven */
         .hero { padding: 100px 0 60px 0; text-align: center; background: linear-gradient(135deg, #faf8f5 0%, #f5f2eb 100%); }
         .hero-badge { display: inline-block; color: var(--gold); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 24px; }
         .hero h1 { font-family: 'Cormorant Garamond', serif; font-size: 64px; font-weight: 500; line-height: 1.2; max-width: 900px; margin: 0 auto 24px; letter-spacing: -0.5px; }
         .hero p { font-size: 18px; color: #4a5a6a; max-width: 600px; margin: 0 auto 32px; font-weight: 300; }
         .btn-primary { background: var(--dark); color: white; border: none; padding: 16px 40px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 500; cursor: pointer; transition: all 0.3s; border-radius: 0; }
         .btn-primary:hover { background: var(--gold); color: var(--dark); }
+        .btn-outline { background: transparent; border: 1px solid var(--dark); color: var(--dark); padding: 14px 36px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; margin-left: 16px; border-radius: 0; }
+        .btn-outline:hover { background: var(--dark); color: white; }
         
-        /* Intelligence Section - NOT a tool */
         .intelligence { padding: 100px 0; background: white; }
         .intelligence h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; text-align: center; margin-bottom: 60px; }
         .intelligence-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; }
@@ -91,13 +140,11 @@ def home():
         .intel-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 500; margin-bottom: 16px; }
         .intel-card p { color: #4a5a6a; font-size: 14px; line-height: 1.6; }
         
-        /* Consequence Section - High stakes framing */
         .consequence { background: var(--dark); color: white; padding: 100px 0; text-align: center; }
         .consequence h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 32px; }
         .consequence p { max-width: 700px; margin: 0 auto; font-size: 18px; color: #8a9bb0; line-height: 1.8; }
         .consequence-highlight { color: var(--gold); font-weight: 600; }
         
-        /* Pricing - Advisory tiers */
         .pricing { padding: 100px 0; background: var(--cream); }
         .pricing h2 { text-align: center; font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 16px; }
         .pricing-sub { text-align: center; color: #8a9bb0; margin-bottom: 60px; font-size: 13px; letter-spacing: 1px; }
@@ -113,12 +160,10 @@ def home():
         .btn-card:hover { background: var(--dark); color: white; }
         .card-premium { border-top: 3px solid var(--gold); background: linear-gradient(135deg, white 0%, #fefcf8 100%); }
         
-        /* Authority Section */
         .authority { padding: 80px 0; background: white; text-align: center; }
         .authority h2 { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 500; margin-bottom: 48px; }
         .authority-quote { max-width: 700px; margin: 0 auto 32px; font-size: 18px; font-style: italic; color: #4a5a6a; border-left: 3px solid var(--gold); padding-left: 24px; text-align: left; }
         
-        /* CTA - Exclusivity */
         .cta { background: var(--dark); color: white; padding: 80px 0; text-align: center; }
         .cta h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 16px; }
         .cta p { color: #8a9bb0; margin-bottom: 32px; }
@@ -143,7 +188,10 @@ def home():
             <div class="hero-badge">PERCEPTION INTELLIGENCE</div>
             <h1>We assess how investors, media, and clients will perceive you — before they do.</h1>
             <p>Private perception advisory for founders, executives, and public figures. Intelligence, not software.</p>
-            <button class="btn-primary" onclick="openApplication()">Request Intelligence Brief →</button>
+            <div>
+                <button class="btn-primary" onclick="openApplication()">Request Intelligence Brief →</button>
+                <button class="btn-outline" onclick="window.location.href='/download-sample-report'">View Sample Report →</button>
+            </div>
         </div>
     </section>
 
@@ -384,4 +432,3 @@ def admin_applications():
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
-    
