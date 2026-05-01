@@ -11,11 +11,58 @@ import os
 import uuid
 import math
 import sqlite3
-import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
 CORS(app)
+
+# Email configuration
+EMAIL_ADDRESS = "vettifyprecheck@gmail.com"
+EMAIL_PASSWORD = "Isefbuqadsreulbb"  # Your app password
+
+def send_email_notification(application_data):
+    """Send email to vettifyprecheck@gmail.com when new application submitted"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = EMAIL_ADDRESS
+        msg['Subject'] = f"New Intelligence Application - {application_data['full_name']}"
+        
+        body = f"""
+        New Intelligence Application Received
+        
+        Applicant Details:
+        -------------------
+        Name: {application_data['full_name']}
+        Email: {application_data['email']}
+        Position: {application_data['position']}
+        LinkedIn: {application_data['linkedin_url']}
+        Funding Amount: {application_data['funding_amount']}
+        
+        Visibility Goals:
+        {application_data['visibility_goal']}
+        
+        Submitted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        
+        ---
+        Vettify Intelligence System
+        """
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        print(f"Email notification sent for {application_data['email']}")
+        return True
+    except Exception as e:
+        print(f"Email error: {str(e)}")
+        return False
 
 DATABASE = "vettify.db"
 
@@ -51,39 +98,33 @@ def download_sample_report():
     styles = getSampleStyleSheet()
     story = []
     
-    # Professional header
     story.append(Paragraph("VETTIFY INTELLIGENCE", ParagraphStyle('Title', parent=styles['Title'], fontSize=24, textColor=colors.HexColor('#0a1628'), alignment=1, spaceAfter=6)))
     story.append(Paragraph("Sample Perception Audit Report", ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10, textColor=colors.grey, alignment=1)))
     story.append(Spacer(1, 0.3*inch))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#c9a03d')))
     story.append(Spacer(1, 0.2*inch))
     
-    # Executive Summary
     story.append(Paragraph("EXECUTIVE SUMMARY", styles['Heading2']))
     story.append(Paragraph("This sample illustrates how Vettify evaluates public perception, credibility signals, and reputation risk for high-visibility individuals.", styles['Normal']))
     story.append(Spacer(1, 0.15*inch))
     
-    # Perception Score
     story.append(Paragraph("PERCEPTION SCORE", styles['Heading2']))
     story.append(Paragraph("<b>72 / 100</b>", ParagraphStyle('Score', parent=styles['Normal'], fontSize=48, textColor=colors.HexColor('#c9a03d'), alignment=0, spaceAfter=6)))
     story.append(Paragraph("Moderate perception strength. Gaps exist in authority signaling and consistent narrative positioning.", styles['Normal']))
     story.append(Spacer(1, 0.15*inch))
     
-    # Risk Analysis
     story.append(Paragraph("REPUTATION RISK ANALYSIS", styles['Heading2']))
-    story.append(Paragraph("• <b>Authority signals:</b> Weak LinkedIn presence reduces perceived credibility by ~15%", styles['Normal']))
+    story.append(Paragraph("• <b>Authority signals:</b> Weak LinkedIn presence reduces perceived credibility", styles['Normal']))
     story.append(Paragraph("• <b>Narrative consistency:</b> Mixed messaging across profiles creates confusion", styles['Normal']))
     story.append(Paragraph("• <b>Media visibility:</b> Low editorial footprint limits discovery by opportunities", styles['Normal']))
     story.append(Spacer(1, 0.15*inch))
     
-    # Recommendations
     story.append(Paragraph("STRATEGIC RECOMMENDATIONS", styles['Heading2']))
     story.append(Paragraph("1. Optimize LinkedIn headline to reflect decision-making authority", styles['Normal']))
     story.append(Paragraph("2. Align narrative across public profiles (consistency = trust)", styles['Normal']))
     story.append(Paragraph("3. Target 2-3 media placements within next 90 days", styles['Normal']))
     story.append(Spacer(1, 0.15*inch))
     
-    # Disclaimer
     story.append(Paragraph("This is a sample report only. Actual intelligence briefs are tailored to each client's specific visibility goals.", ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=7, textColor=colors.grey)))
     
     doc.build(story)
@@ -159,10 +200,6 @@ def home():
         .btn-card { width: 100%; background: transparent; border: 1px solid var(--dark); padding: 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; }
         .btn-card:hover { background: var(--dark); color: white; }
         .card-premium { border-top: 3px solid var(--gold); background: linear-gradient(135deg, white 0%, #fefcf8 100%); }
-        
-        .authority { padding: 80px 0; background: white; text-align: center; }
-        .authority h2 { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 500; margin-bottom: 48px; }
-        .authority-quote { max-width: 700px; margin: 0 auto 32px; font-size: 18px; font-style: italic; color: #4a5a6a; border-left: 3px solid var(--gold); padding-left: 24px; text-align: left; }
         
         .cta { background: var(--dark); color: white; padding: 80px 0; text-align: center; }
         .cta h2 { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 500; margin-bottom: 16px; }
@@ -278,26 +315,12 @@ def home():
         </div>
     </section>
 
-    <section class="authority">
-        <div class="container">
-            <h2>Who Trusts Our Intelligence</h2>
-            <div class="authority-quote">
-                "The perception audit changed how I positioned my company before a major raise. We secured funding within 60 days."
-                <div style="margin-top: 12px; font-size: 12px; color: #c9a03d;">— FOUNDER, RAISED R25M</div>
-            </div>
-            <div class="authority-quote">
-                "I had no idea how my LinkedIn profile was being interpreted. Vettify identified gaps I didn't know existed."
-                <div style="margin-top: 12px; font-size: 12px; color: #c9a03d;">— EXECUTIVE, FORTUNE 500</div>
-            </div>
-        </div>
-    </section>
-
     <section class="cta">
         <div class="container">
             <h2>Applications are reviewed manually to ensure client fit.</h2>
             <p>Currently accepting founding members. Limited capacity.</p>
             <button class="btn-cta" onclick="openApplication()">Request Intelligence Brief →</button>
-            <div class="scarcity">3 of 20 client slots remain</div>
+            <div class="scarcity">Limited client slots available</div>
         </div>
     </section>
 
@@ -349,7 +372,7 @@ def apply():
         <a href="/" class="logo">VETTIFY <span>INTELLIGENCE</span></a>
         <div class="form-card">
             <h1>Apply for Intelligence Access</h1>
-            <div class="sub">Applications are reviewed manually. Limited to 20 active clients.</div>
+            <div class="sub">Applications are reviewed manually. Limited capacity.</div>
             <form id="applicationForm">
                 <div class="form-group"><label>Full Name</label><input type="text" id="full_name" required></div>
                 <div class="form-group"><label>Email Address</label><input type="email" id="email" required></div>
@@ -358,7 +381,7 @@ def apply():
                 <div class="form-group"><label>If raising capital, what amount?</label><select id="funding_amount"><option value="Not raising">Not raising currently</option><option value="Under R5M">Under R5M</option><option value="R5M-R20M">R5M - R20M</option><option value="R20M-R100M">R20M - R100M</option><option value="R100M+">R100M+</option></select></div>
                 <div class="form-group"><label>What are your visibility goals?</label><textarea id="visibility_goal" rows="3" placeholder="Fundraising, speaking opportunities, media features, board positions..."></textarea></div>
                 <button type="submit" class="btn-submit">Submit Application →</button>
-                <div class="note">Your application will be reviewed within 24 hours. Selected clients will receive a confidential onboarding packet.</div>
+                <div class="note">Your application will be reviewed. Selected clients will receive onboarding details.</div>
             </form>
         </div>
     </div>
@@ -379,7 +402,7 @@ def apply():
             try {
                 const res = await fetch('/submit-application', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
                 if (res.ok) {
-                    alert('Application received. We will review and respond within 24 hours.');
+                    alert('Application received. We will review and respond.');
                     window.location.href = '/';
                 } else { alert('Error submitting application.'); }
             } catch(err) { alert('Error submitting.'); }
@@ -403,6 +426,10 @@ def submit_application():
          data['position'], data['funding_amount'], data['visibility_goal'], datetime.now().isoformat()))
     conn.commit()
     conn.close()
+    
+    # Send email notification
+    send_email_notification(data)
+    
     return jsonify({'status': 'received'})
 
 @app.route('/admin/applications')
@@ -432,3 +459,4 @@ def admin_applications():
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
+    
