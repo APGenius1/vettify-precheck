@@ -239,7 +239,7 @@ def analyze_validation_signal(text):
 # ================= PERCEPTION GAP REPORT GENERATION =================
 
 def generate_perception_gap_report(client_data, profile_text):
-    """Generate professional perception gap report"""
+    """Generate professional perception gap report - FULLY CORRECTED"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, 
                            topMargin=72, bottomMargin=72, 
@@ -254,7 +254,6 @@ def generate_perception_gap_report(client_data, profile_text):
     subsection = ParagraphStyle('Subsection', parent=styles['Heading3'], fontSize=12, textColor=colors.HexColor('#0a1628'), spaceAfter=8, spaceBefore=12, fontName='Helvetica-Bold')
     body_text = ParagraphStyle('BodyText', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#2c3e50'), spaceAfter=8, leading=16)
     highlight = ParagraphStyle('Highlight', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#c9a03d'), spaceAfter=8, leading=16, fontName='Helvetica-Bold')
-    bullet = ParagraphStyle('Bullet', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#2c3e50'), spaceAfter=6, leftIndent=16)
     
     # Analyze profile text
     if profile_text and len(profile_text.strip()) > 20:
@@ -263,14 +262,24 @@ def generate_perception_gap_report(client_data, profile_text):
         visibility = analyze_visibility_footprint(profile_text)
         validation = analyze_validation_signal(profile_text)
     else:
-        # Default for sample
-        authority = {'score': 68, 'level': 'Developing', 'reasons': ['Lacks decision-making language'], 'fixes': ['Add leadership verbs to headline']}
-        narrative = {'score': 71, 'level': 'Developing', 'reasons': ['No clear positioning statement'], 'fixes': ['Create consistent master bio']}
-        visibility = {'score': 59, 'level': 'Under-Optimised', 'reasons': ['No media mentions detected'], 'fixes': ['Target bylined article']}
-        validation = {'score': 65, 'level': 'Developing', 'reasons': ['No social proof visible'], 'fixes': ['Collect LinkedIn recommendations']}
+        # Default values for sample report
+        authority = {'score': 56, 'level': 'Weak', 'reasons': ['Lacks decision-making language'], 'fixes': ['Add leadership verbs to headline']}
+        narrative = {'score': 61, 'level': 'Developing', 'reasons': ['No clear positioning statement'], 'fixes': ['Create consistent master bio']}
+        visibility = {'score': 36, 'level': 'Under-Optimised', 'reasons': ['No media mentions detected'], 'fixes': ['Target bylined article or podcast']}
+        validation = {'score': 55, 'level': 'Weak', 'reasons': ['No social proof visible'], 'fixes': ['Collect LinkedIn recommendations']}
     
+    # Calculate overall score - 52 for sample (56+61+36+55 = 208 / 4 = 52)
     overall_score = (authority['score'] + narrative['score'] + visibility['score'] + validation['score']) / 4
     
+    # Calculate potential gains
+    authority_gain = 12 if authority['score'] < 75 else 0
+    narrative_gain = 8 if narrative['score'] < 75 else 0
+    visibility_gain = 15 if visibility['score'] < 75 else 0
+    validation_gain = 6 if validation['score'] < 75 else 0
+    total_gain = authority_gain + narrative_gain + visibility_gain + validation_gain
+    new_score = min(100, int(overall_score) + total_gain)
+    
+    # Determine perception levels
     if overall_score >= 80:
         perceived_level = "Decision-Maker"
         target_level = "Strategic Leader"
@@ -289,7 +298,7 @@ def generate_perception_gap_report(client_data, profile_text):
     
     client_name = client_data.get('full_name', 'Private Client')
     
-    # PAGE 1
+    # ================= PAGE 1 =================
     story.append(Paragraph("CONFIDENTIAL", ParagraphStyle('Confidential', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#c9a03d'), alignment=2, spaceAfter=6)))
     story.append(Spacer(1, 0.05*inch))
     story.append(Paragraph("VETTIFY INTELLIGENCE", title_style))
@@ -302,6 +311,7 @@ def generate_perception_gap_report(client_data, profile_text):
     story.append(Paragraph("Classification: Private & Confidential", body_text))
     story.append(Spacer(1, 0.2*inch))
     
+    # Section 1: Perception Gap
     story.append(Paragraph("1. PERCEPTION GAP ANALYSIS", section_header))
     story.append(Paragraph(f"<b>Current Perception Level:</b> {perceived_level}", body_text))
     story.append(Paragraph(f"<b>Target Perception Level:</b> {target_level}", body_text))
@@ -310,7 +320,12 @@ def generate_perception_gap_report(client_data, profile_text):
     story.append(Paragraph(f"<b>Overall Perception Score:</b> {int(overall_score)} / 100", highlight))
     story.append(Spacer(1, 0.15*inch))
     
+    # Section 2: Benchmark Comparison
     story.append(Paragraph("2. BENCHMARK COMPARISON", section_header))
+    story.append(Paragraph("<b>Note:</b> Benchmarks are based on aggregated data from founder and executive profiles.", 
+                         ParagraphStyle('Note', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#8a9bb0'), italics=True)))
+    story.append(Spacer(1, 0.05*inch))
+    
     benchmark_data = [
         ["Comparison Group", "Score", "Analysis"],
         ["Your Score", f"{int(overall_score)}/100", ""],
@@ -331,14 +346,15 @@ def generate_perception_gap_report(client_data, profile_text):
     story.append(bench_table)
     story.append(Spacer(1, 0.2*inch))
     
-    # PAGE 2
+    # ================= PAGE 2 =================
     story.append(Paragraph("3. SCORE BREAKDOWN", section_header))
+    
     breakdown_data = [
-        ["Dimension", "Score", "Status", "What This Means"],
+        ["Dimension", "Your Score", "Status", "What This Means"],
         ["Authority Positioning", f"{authority['score']}/100", authority['level'], "How decision-makers perceive your leadership weight"],
         ["Narrative Alignment", f"{narrative['score']}/100", narrative['level'], "Whether your story is consistent across platforms"],
         ["Visibility Footprint", f"{visibility['score']}/100", visibility['level'], "Your presence in media and public platforms"],
-        ["Third-Party Validation", f"{validation['score']}/100", validation['level'], "External credibility signals and social proof"],
+        ["Validation Footprint", f"{validation['score']}/100", validation['level'], "External credibility signals and social proof"],
     ]
     breakdown_table = Table(breakdown_data, colWidths=[1.6*inch, 0.9*inch, 1.1*inch, 2.4*inch])
     breakdown_table.setStyle(TableStyle([
@@ -354,77 +370,106 @@ def generate_perception_gap_report(client_data, profile_text):
     story.append(breakdown_table)
     story.append(Spacer(1, 0.2*inch))
     
+    # Section 4: Detailed Findings
     story.append(Paragraph("4. DETAILED FINDINGS", section_header))
     
     story.append(Paragraph("Authority Positioning", subsection))
     story.append(Paragraph(f"<b>Score:</b> {authority['score']}/100 — {authority['level']}", body_text))
     for reason in authority['reasons']:
         story.append(Paragraph(f"• {reason}", body_text))
-    story.append(Paragraph(f"<b>Action:</b> {authority['fixes'][0] if authority['fixes'] else 'Continue current approach'}", highlight))
+    story.append(Paragraph(f"<b>Recommended Action:</b> {authority['fixes'][0] if authority['fixes'] else 'Continue current approach'}", highlight))
     story.append(Spacer(1, 0.1*inch))
     
     story.append(Paragraph("Narrative Alignment", subsection))
     story.append(Paragraph(f"<b>Score:</b> {narrative['score']}/100 — {narrative['level']}", body_text))
     for reason in narrative['reasons']:
         story.append(Paragraph(f"• {reason}", body_text))
-    story.append(Paragraph(f"<b>Action:</b> {narrative['fixes'][0] if narrative['fixes'] else 'Continue current approach'}", highlight))
+    story.append(Paragraph(f"<b>Recommended Action:</b> {narrative['fixes'][0] if narrative['fixes'] else 'Continue current approach'}", highlight))
     story.append(Spacer(1, 0.1*inch))
     
-    # PAGE 3
     story.append(Paragraph("Visibility Footprint", subsection))
     story.append(Paragraph(f"<b>Score:</b> {visibility['score']}/100 — {visibility['level']}", body_text))
     for reason in visibility['reasons']:
         story.append(Paragraph(f"• {reason}", body_text))
-    story.append(Paragraph(f"<b>Action:</b> {visibility['fixes'][0] if visibility['fixes'] else 'Continue current approach'}", highlight))
+    story.append(Paragraph(f"<b>Recommended Action:</b> {visibility['fixes'][0] if visibility['fixes'] else 'Continue current approach'}", highlight))
     story.append(Spacer(1, 0.1*inch))
     
-    story.append(Paragraph("Third-Party Validation", subsection))
+    story.append(Paragraph("Validation Footprint", subsection))
     story.append(Paragraph(f"<b>Score:</b> {validation['score']}/100 — {validation['level']}", body_text))
     for reason in validation['reasons']:
         story.append(Paragraph(f"• {reason}", body_text))
-    story.append(Paragraph(f"<b>Action:</b> {validation['fixes'][0] if validation['fixes'] else 'Continue current approach'}", highlight))
+    story.append(Paragraph(f"<b>Recommended Action:</b> {validation['fixes'][0] if validation['fixes'] else 'Continue current approach'}", highlight))
     story.append(Spacer(1, 0.2*inch))
     
-    story.append(Paragraph("5. ACTION PLAN", section_header))
+    # ================= PAGE 3 =================
+    story.append(Paragraph("5. ACTIONABLE IMPROVEMENT PLAN", section_header))
     story.append(Paragraph("Complete these actions in priority order to close your perception gap:", body_text))
     story.append(Spacer(1, 0.05*inch))
     
+    # Collect all actions for the table
+    action_items = []
     if authority['fixes']:
-        story.append(Paragraph(f"1. {authority['fixes'][0]}", bullet))
+        action_items.append({"action": authority['fixes'][0], "category": "Authority", "points": authority_gain, "timeline": "24-48 hours"})
     if narrative['fixes']:
-        story.append(Paragraph(f"2. {narrative['fixes'][0]}", bullet))
+        action_items.append({"action": narrative['fixes'][0], "category": "Narrative", "points": narrative_gain, "timeline": "1 week"})
     if visibility['fixes']:
-        story.append(Paragraph(f"3. {visibility['fixes'][0]}", bullet))
+        action_items.append({"action": visibility['fixes'][0], "category": "Visibility", "points": visibility_gain, "timeline": "60-90 days"})
     if validation['fixes']:
-        story.append(Paragraph(f"4. {validation['fixes'][0]}", bullet))
+        action_items.append({"action": validation['fixes'][0], "category": "Validation", "points": validation_gain, "timeline": "30 days"})
     
-    total_gain = 0
-    if authority['score'] < 80:
-        total_gain += 12
-    if narrative['score'] < 80:
-        total_gain += 8
-    if visibility['score'] < 80:
-        total_gain += 15
-    if validation['score'] < 80:
-        total_gain += 6
+    # Create action table
+    action_table_data = [["Action", "Category", "Impact", "Timeline"]]
+    for item in action_items:
+        action_table_data.append([item['action'], item['category'], f"+{item['points']} points", item['timeline']])
     
-    new_score = min(100, int(overall_score) + total_gain)
-    
+    action_table = Table(action_table_data, colWidths=[2.5*inch, 1.0*inch, 0.8*inch, 1.0*inch])
+    action_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0a1628')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('ALIGN', (2,0), (2,-1), 'CENTER'),
+        ('ALIGN', (3,0), (3,-1), 'CENTER'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(action_table)
     story.append(Spacer(1, 0.1*inch))
+    
+    # Total improvement calculation
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e2e8f0')))
     story.append(Spacer(1, 0.05*inch))
     story.append(Paragraph(f"<b>Total Potential Improvement:</b> +{total_gain} points → {new_score}/100", highlight))
-    story.append(Spacer(1, 0.2*inch))
+    if new_score >= 88:
+        story.append(Paragraph("This would place you in the top 10% tier of perception scores.", body_text))
+    elif new_score >= 72:
+        story.append(Paragraph("This would place you above the industry average.", body_text))
+    story.append(Spacer(1, 0.15*inch))
     
-    story.append(Paragraph("6. FINAL ASSESSMENT", section_header))
+    # Section 6: Cost of Gap
+    story.append(Paragraph("6. COST OF THIS GAP", section_header))
+    story.append(Paragraph("Based on current perception positioning, the following risks are present:", body_text))
+    story.append(Spacer(1, 0.05*inch))
+    story.append(Paragraph("• Slower trust-building with investors, partners, and key stakeholders", body_text))
+    story.append(Paragraph("• Potential underestimation of your capability in competitive environments", body_text))
+    story.append(Paragraph("• Missed opportunities that favor individuals with stronger authority signals", body_text))
+    story.append(Paragraph("• Extended time required to establish credibility in new relationships", body_text))
+    story.append(Spacer(1, 0.15*inch))
+    
+    # Section 7: Final Assessment
+    story.append(Paragraph("7. FINAL ASSESSMENT", section_header))
     if overall_score >= 80:
         story.append(Paragraph("You are already perceived as a decision-maker. Focus on expanding visibility and validation to reach strategic leader status.", body_text))
     elif overall_score >= 65:
-        story.append(Paragraph("You are perceived as an operator. To be seen as a decision-maker, add leadership language to your profile and build external validation.", body_text))
+        story.append(Paragraph("You are perceived as an operator or contributor. To be seen as a decision-maker, focus on adding leadership language to your profile and building external validation.", body_text))
     else:
-        story.append(Paragraph("Your current positioning does not yet signal executive authority. Systematic rebuild of narrative, visibility, and validation signals is recommended.", body_text))
-    story.append(Spacer(1, 0.15*inch))
+        story.append(Paragraph("Your current positioning does not yet signal executive-level authority. A systematic rebuild of your narrative, visibility, and validation signals is recommended to close the perception gap.", body_text))
+    story.append(Spacer(1, 0.2*inch))
     
+    # Footer
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e2e8f0')))
     story.append(Spacer(1, 0.05*inch))
     story.append(Paragraph(f"Confidential · Prepared for {client_name} · Valid for 60 days", 
@@ -480,31 +525,87 @@ def home():
         .hero p { font-size: 18px; color: #5b6e8c; max-width: 600px; margin: 0 auto; }
         .btn-primary { background: var(--dark); color: white; border: none; padding: 14px 36px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 32px; }
         .btn-primary:hover { background: var(--gold); color: var(--dark); }
-        .btn-outline { background: transparent; border: 1px solid var(--dark); padding: 14px 36px; font-size: 14px; cursor: pointer; margin-left: 16px; }
+        .btn-outline { background: transparent; border: 1px solid var(--dark); color: var(--dark); padding: 14px 36px; font-size: 14px; cursor: pointer; margin-left: 16px; }
+        .btn-outline:hover { background: var(--dark); color: white; }
         .pricing { padding: 80px 0; background: white; }
         .pricing h2 { text-align: center; font-size: 32px; margin-bottom: 48px; }
         .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-        .pricing-card { background: var(--cream); padding: 40px; border: 1px solid #e2e8f0; }
-        .pricing-card:hover { border-color: var(--gold); }
+        .pricing-card { background: var(--cream); padding: 40px; border: 1px solid #e2e8f0; transition: all 0.3s; }
+        .pricing-card:hover { border-color: var(--gold); transform: translateY(-4px); }
         .pricing-tier { font-size: 12px; letter-spacing: 2px; color: var(--gold); margin-bottom: 16px; }
         .pricing-price { font-size: 36px; font-weight: 700; margin-bottom: 24px; }
-        .btn-card { width: 100%; background: transparent; border: 1px solid var(--dark); padding: 12px; cursor: pointer; }
+        .pricing-price small { font-size: 14px; font-weight: 400; }
+        .btn-card { width: 100%; background: transparent; border: 1px solid var(--dark); padding: 12px; cursor: pointer; transition: all 0.3s; }
         .btn-card:hover { background: var(--dark); color: white; }
         .card-premium { border-top: 3px solid var(--gold); }
         .cta { background: var(--dark); color: white; padding: 80px 0; text-align: center; }
         .cta h2 { font-size: 28px; margin-bottom: 16px; }
-        .btn-cta { background: var(--gold); color: var(--dark); border: none; padding: 16px 48px; font-weight: 600; cursor: pointer; }
+        .btn-cta { background: var(--gold); color: var(--dark); border: none; padding: 16px 48px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-cta:hover { opacity: 0.9; }
         .footer { padding: 48px 0; text-align: center; border-top: 1px solid #e2e8f0; color: #8a9bb0; font-size: 12px; }
         @media (max-width: 900px) { .container { padding: 0 24px; } .hero h1 { font-size: 32px; } .pricing-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <nav class="navbar"><div class="container"><a href="/" class="logo">VETTIFY <span>INTELLIGENCE</span></a><span class="badge">Private Advisory</span></div></nav>
-    <section class="hero"><div class="container"><h1>How are you perceived in high-trust environments?</h1><p>We measure perception gaps, benchmark against peers, and tell you exactly what to fix.</p><div><button class="btn-primary" onclick="openApplication()">Request Perception Audit →</button><button class="btn-outline" onclick="window.location.href='/download-sample-report'">View Sample Report →</button></div></div></section>
-    <section class="pricing"><div class="container"><h2>Perception Intelligence Tiers</h2><div class="pricing-grid"><div class="pricing-card"><div class="pricing-tier">PROFESSIONAL</div><div class="pricing-price">R9,900<span style="font-size:14px;">/month</span></div><button class="btn-card" onclick="openApplication()">Request Access</button></div><div class="pricing-card"><div class="pricing-tier">EXECUTIVE</div><div class="pricing-price">R24,900<span style="font-size:14px;">/month</span></div><button class="btn-card" onclick="openApplication()">Request Access</button></div><div class="pricing-card card-premium"><div class="pricing-tier">ELITE ADVISORY</div><div class="pricing-price">R49,900<span style="font-size:14px;">/month</span></div><button class="btn-card" onclick="openApplication()">Request Access</button></div></div></div></section>
-    <section class="cta"><div class="container"><h2>Applications reviewed manually. Limited capacity.</h2><button class="btn-cta" onclick="openApplication()">Request Perception Audit →</button></div></section>
-    <footer class="footer"><div class="container"><p>VETTIFY INTELLIGENCE — PERCEPTION GAP ENGINE</p></div></footer>
-    <script>function openApplication(){window.location.href='/apply';}</script>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">VETTIFY <span>INTELLIGENCE</span></a>
+            <span class="badge">Private Advisory</span>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="container">
+            <h1>How are you perceived in high-trust environments?</h1>
+            <p>We measure perception gaps, benchmark against peers, and tell you exactly what to fix.</p>
+            <div>
+                <button class="btn-primary" onclick="openApplication()">Request Perception Audit →</button>
+                <button class="btn-outline" onclick="window.location.href='/download-sample-report'">View Sample Report →</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing">
+        <div class="container">
+            <h2>Perception Intelligence Tiers</h2>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-tier">PROFESSIONAL</div>
+                    <div class="pricing-price">R9,900<span style="font-size:14px;">/month</span></div>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-tier">EXECUTIVE</div>
+                    <div class="pricing-price">R24,900<span style="font-size:14px;">/month</span></div>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+                <div class="pricing-card card-premium">
+                    <div class="pricing-tier">ELITE ADVISORY</div>
+                    <div class="pricing-price">R49,900<span style="font-size:14px;">/month</span></div>
+                    <button class="btn-card" onclick="openApplication()">Request Access</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Applications reviewed manually. Limited capacity.</h2>
+            <button class="btn-cta" onclick="openApplication()">Request Perception Audit →</button>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>VETTIFY INTELLIGENCE — PERCEPTION GAP ENGINE</p>
+        </div>
+    </footer>
+
+    <script>
+        function openApplication() {
+            window.location.href = '/apply';
+        }
+    </script>
 </body>
 </html>
     ''')
@@ -522,65 +623,4 @@ def apply():
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',sans-serif;background:#faf8f5;padding:60px 20px}
-        .container{max-width:600px;margin:0 auto;background:white;padding:48px;border:1px solid #e2e8f0}
-        h1{font-size:28px;margin-bottom:8px}
-        .sub{color:#8a9bb0;margin-bottom:32px;font-size:13px}
-        .form-group{margin-bottom:24px}
-        label{display:block;font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:600}
-        input,select,textarea{width:100%;padding:12px;border:1px solid #e2e8f0;font-size:14px;font-family:inherit}
-        input:focus,select:focus,textarea:focus{outline:none;border-color:#c9a03d}
-        .btn-submit{width:100%;background:#0a1628;color:white;border:none;padding:14px;font-size:14px;font-weight:500;cursor:pointer;margin-top:16px}
-        .btn-submit:hover{background:#c9a03d;color:#0a1628}
-        .loading{display:none;text-align:center;margin-top:16px;color:#c9a03d}
-        .note{font-size:11px;color:#8a9bb0;text-align:center;margin-top:24px}
-        @media(max-width:600px){.container{padding:24px}}
-    </style>
-</head>
-<body>
-<div class="container">
-    <h1>Apply for Perception Audit</h1>
-    <div class="sub">Applications reviewed manually. Limited capacity.</div>
-    <form id="applicationForm">
-        <div class="form-group"><label>Full Name</label><input type="text" id="full_name" required></div>
-        <div class="form-group"><label>Email</label><input type="email" id="email" required></div>
-        <div class="form-group"><label>LinkedIn URL</label><input type="url" id="linkedin_url"></div>
-        <div class="form-group"><label>Current Position</label><input type="text" id="position" placeholder="Founder, CEO, Executive..."></div>
-        <div class="form-group"><label>If raising capital, what amount?</label><select id="funding_amount"><option>Not raising</option><option>Under R5M</option><option>R5M-R20M</option><option>R20M-R100M</option><option>R100M+</option></select></div>
-        <div class="form-group"><label>Paste your LinkedIn profile text or bio</label><textarea id="profile_text" rows="6" placeholder="Paste your LinkedIn summary, bio, or profile description here..."></textarea></div>
-        <button type="submit" class="btn-submit" id="submitBtn">Request Perception Audit →</button>
-        <div class="loading" id="loading">Submitting...</div>
-        <div class="note">Your application will be reviewed. Selected clients will receive a full perception gap report.</div>
-    </form>
-</div>
-<script>
-document.getElementById('applicationForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn');
-    const loading = document.getElementById('loading');
-    btn.style.display = 'none';
-    loading.style.display = 'block';
-    const formData = {
-        full_name: document.getElementById('full_name').value,
-        email: document.getElementById('email').value,
-        linkedin_url: document.getElementById('linkedin_url').value,
-        position: document.getElementById('position').value,
-        funding_amount: document.getElementById('funding_amount').value,
-        profile_text: document.getElementById('profile_text').value
-    };
-    try {
-        const res = await fetch('/submit-application', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-        if (res.ok) { alert('Application received. We will review and respond within 24 hours.'); window.location.href = '/'; }
-        else { alert('Error submitting. Please try again.'); btn.style.display = 'block'; loading.style.display = 'none'; }
-    } catch(err) { alert('Error submitting. Please try again.'); btn.style.display = 'block'; loading.style.display = 'none'; }
-});
-</script>
-</body>
-</html>
-    ''')
-
-@app.route('/submit-application', methods=['POST'])
-def submit_application():
-    data = request.json
-    conn = get_db()
-    app_id = str(uuid.uuid4())[:8]
-    conn.execute('''INSERT INTO applications (id, full_name, email, linkedin_url, position, funding_amount
+        .container{max-width:600px;margin:0 auto;
