@@ -2,311 +2,1122 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vettify PreCheck | Decision Intelligence System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Trade Discipline AI | Professional Risk Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
-        .navbar { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 0; position: sticky; top: 0; z-index: 100; }
-        .nav-container { max-width: 1280px; margin: 0 auto; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 24px; font-weight: 800; color: #0a2540; text-decoration: none; }
-        .logo span { font-weight: 400; color: #5b6e8c; }
-        .btn-outline { padding: 8px 20px; border: 1.5px solid #0a2540; border-radius: 30px; background: transparent; color: #0a2540; font-weight: 600; cursor: pointer; }
-        .hero { background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; padding: 60px 32px; text-align: center; }
-        .hero h1 { font-size: 48px; font-weight: 800; margin-bottom: 16px; }
-        .hero p { font-size: 18px; opacity: 0.9; max-width: 600px; margin: 0 auto; }
-        .hero-badge { background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 12px; margin-bottom: 24px; }
-        .main-container { max-width: 1280px; margin: -40px auto 48px; padding: 0 32px; display: grid; grid-template-columns: 1fr 0.9fr; gap: 32px; }
-        .form-card { background: white; border-radius: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); overflow: hidden; }
-        .form-header { padding: 28px 32px; border-bottom: 1px solid #eef2f6; }
-        .form-header h2 { font-size: 22px; font-weight: 700; color: #0a2540; }
-        .form-body { padding: 32px; }
-        .form-group { margin-bottom: 24px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; color: #1a2c3e; font-size: 13px; text-transform: uppercase; }
-        input, select { width: 100%; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 14px; font-size: 15px; font-family: 'Inter', sans-serif; }
-        input:focus, select:focus { outline: none; border-color: #0a2540; }
-        .radio-group { display: flex; gap: 32px; margin-top: 8px; }
-        .radio-group label { display: flex; align-items: center; font-weight: 500; text-transform: none; gap: 10px; cursor: pointer; }
-        .row-group { display: flex; gap: 16px; }
-        .row-group .form-group { flex: 1; }
-        .inline-group { display: flex; gap: 12px; }
-        .inline-group select { flex: 2; }
-        .inline-group input { flex: 1; }
-        .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, #0a2540 0%, #1b4d3e 100%); color: white; border: none; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 16px; }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-        .result-card { background: white; border-radius: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 32px; position: sticky; top: 100px; }
-        .result-score { text-align: center; padding: 24px; background: #f8fafc; border-radius: 20px; margin-bottom: 24px; }
-        .score-number { font-size: 64px; font-weight: 800; line-height: 1; }
-        .premium-box { background: #f0fdf4; padding: 16px; border-radius: 16px; text-align: center; }
-        .premium-amount { font-size: 28px; font-weight: 800; color: #16a34a; }
-        .drivers-list { background: #f8fafc; border-radius: 16px; padding: 20px; margin: 16px 0; }
-        .driver-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
-        .driver-impact-neg { color: #dc2626; font-weight: 600; }
-        .driver-impact-pos { color: #16a34a; font-weight: 600; }
-        .paywall { background: #fef3c7; border-radius: 20px; padding: 24px; text-align: center; margin-top: 24px; }
-        .paywall h3 { font-size: 18px; font-weight: 700; color: #92400e; margin-bottom: 12px; }
-        .paywall-price { font-size: 32px; font-weight: 800; color: #0a2540; margin: 16px 0; }
-        .btn-pay { width: 100%; padding: 14px; background: #0070ba; color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; cursor: pointer; }
-        .btn-pay:hover { background: #003087; }
-        .value-badge { background: #e8f0fe; border-radius: 12px; padding: 12px; margin: 16px 0; text-align: center; font-size: 13px; }
-        .hidden { display: none; }
-        .loading { text-align: center; padding: 40px; }
-        .error { color: #dc2626; padding: 12px; background: #fee2e2; border-radius: 12px; margin-top: 16px; display: none; }
-        .remaining-badge { background: #e8f0fe; padding: 8px 16px; border-radius: 30px; font-size: 12px; margin-bottom: 16px; text-align: center; }
-        .footer { text-align: center; padding: 48px 32px; color: #8a9bb0; border-top: 1px solid #e2e8f0; margin-top: 48px; }
-        @media (max-width: 900px) { .main-container { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0e27;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* Premium Dark Theme */
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-glow: rgba(99, 102, 241, 0.3);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --dark-bg: #0a0e27;
+            --card-bg: rgba(15, 23, 42, 0.95);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-secondary: #94a3b8;
+        }
+
+        /* Glassmorphism Navigation */
+        .navbar {
+            background: rgba(10, 14, 39, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 2rem;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            font-size: 1.8rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.25rem;
+            border-radius: 12px;
+        }
+
+        .nav-btn {
+            padding: 0.6rem 1.2rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .nav-btn:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .funded-toggle {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .funded-toggle.active {
+            background: var(--warning);
+            color: #0a0e27;
+            border-color: var(--warning);
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Cards */
+        .trade-form-card, .analysis-card, .stats-grid, .rules-form {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        input, select, textarea {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* Position Toggle */
+        .position-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .pos-btn {
+            flex: 1;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .pos-btn.active-buy {
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-color: #10b981;
+        }
+
+        .pos-btn.active-sell {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            border-color: #ef4444;
+        }
+
+        /* Confidence Slider */
+        input[type="range"] {
+            width: 100%;
+            padding: 0;
+            background: var(--border);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            background: var(--primary);
+            cursor: pointer;
+        }
+
+        .confidence-value {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn-analyze, .btn-save, .btn-save-rules {
+            flex: 1;
+            padding: 0.9rem;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px var(--primary-glow);
+        }
+
+        .btn-save {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid var(--border);
+        }
+
+        .btn-save:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Analysis Card */
+        .analysis-card {
+            animation: slideUp 0.5s ease;
+        }
+
+        .analysis-card.pass {
+            border-left: 4px solid var(--success);
+        }
+
+        .analysis-card.fail {
+            border-left: 4px solid var(--danger);
+        }
+
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-badge {
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-badge.pass {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .status-badge.fail {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .analysis-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .metric-value.success {
+            color: var(--success);
+        }
+
+        .metric-value.danger {
+            color: var(--danger);
+        }
+
+        .analysis-feedback {
+            background: rgba(99, 102, 241, 0.1);
+            padding: 1rem;
+            border-radius: 12px;
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .feedback-icon {
+            font-size: 1.5rem;
+        }
+
+        .feedback-text {
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .warnings-list {
+            margin-top: 1rem;
+        }
+
+        .warning-item {
+            padding: 0.5rem;
+            color: var(--warning);
+            font-size: 0.85rem;
+        }
+
+        .funded-warning {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(245, 158, 11, 0.1);
+            border-radius: 12px;
+            color: var(--warning);
+            font-weight: 600;
+            text-align: center;
+        }
+
+        /* Dashboard Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            padding: 0;
+            background: transparent;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .rules-compliance {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .discipline-meter {
+            background: rgba(255, 255, 255, 0.1);
+            height: 8px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .discipline-fill {
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            height: 100%;
+            border-radius: 10px;
+            transition: width 1s ease;
+        }
+
+        /* Trade Journal */
+        .trades-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .trade-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .trade-card:hover {
+            border-color: var(--primary);
+            transform: translateX(5px);
+        }
+
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .trade-pair {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .trade-type {
+            margin-left: 0.75rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .trade-type.buy {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .trade-type.sell {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .trade-date {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        .trade-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .trade-feedback {
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            margin: 0.5rem 0;
+        }
+
+        .trade-notes {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin: 0.5rem 0;
+        }
+
+        .trade-result-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .result-win, .result-loss {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .result-win {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .result-win:hover {
+            background: var(--success);
+            color: white;
+        }
+
+        .result-loss {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .result-loss:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .trade-result {
+            margin-top: 0.75rem;
+            text-align: center;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+        .trade-result.win {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .trade-result.loss {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        /* Rules Page */
+        .rules-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .rules-form {
+            margin-bottom: 0;
+        }
+
+        .rule-item {
+            margin-bottom: 1.5rem;
+        }
+
+        .rule-item small {
+            display: block;
+            margin-top: 0.25rem;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+        }
+
+        .btn-save-rules {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .discipline-tips {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .discipline-tips h4 {
+            margin-bottom: 1rem;
+        }
+
+        .discipline-tips ul {
+            list-style: none;
+        }
+
+        .discipline-tips li {
+            padding: 0.5rem 0;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0.75rem 1rem;
+            }
+
+            .nav-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .nav-links {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .nav-btn {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .trade-form-card, .analysis-card {
+                padding: 1.25rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .rules-container {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <a href="/" class="logo">VETTIFY <span>PreCheck</span></a>
-            <button class="btn-outline" onclick="alert('Broker Access: R1,999/month\\nContact: hello@vettifyprecheck.com')">For Brokers →</button>
+            <div class="logo">
+                <span class="logo-icon">📊</span>
+                Trade Discipline AI
+            </div>
+            <div class="nav-links">
+                <button class="nav-btn active" data-tab="trade">New Trade</button>
+                <button class="nav-btn" data-tab="dashboard">Dashboard</button>
+                <button class="nav-btn" data-tab="journal">Journal</button>
+                <button class="nav-btn" data-tab="rules">Rules</button>
+            </div>
+            <button class="funded-toggle" id="fundedToggle">
+                🛡️ Funded Mode OFF
+            </button>
         </div>
     </nav>
 
-    <div class="hero">
-        <div class="hero-badge">⚡ Decision Intelligence System</div>
-        <h1>Know before you apply</h1>
-        <p>Risk breakdown • Insurer matching • Market benchmarks • First 5 free</p>
-    </div>
-
-    <div class="main-container">
-        <div class="form-card">
-            <div class="form-header"><h2>Client Assessment</h2></div>
-            <div class="form-body">
-                <form id="assessmentForm">
-                    <div class="row-group">
-                        <div class="form-group"><label>Age</label><input type="number" id="age" required min="18" max="80" placeholder="35"></div>
-                        <div class="form-group"><label>Gender</label><select id="gender"><option value="male">Male</option><option value="female">Female</option></select></div>
+    <main class="main-content">
+        <!-- Trade Tab -->
+        <div id="tradeTab" class="tab-content">
+            <div class="trade-form-card">
+                <h2>📝 Trade Entry</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Currency Pair</label>
+                        <select id="currencyPair">
+                            <option>EUR/USD</option>
+                            <option>GBP/USD</option>
+                            <option>USD/JPY</option>
+                            <option>AUD/USD</option>
+                            <option>USD/CAD</option>
+                            <option>NZD/USD</option>
+                        </select>
                     </div>
-                    <div class="form-group"><label>Smoker</label><div class="radio-group"><label><input type="radio" name="smoker" value="yes"> Yes</label><label><input type="radio" name="smoker" value="no" checked> No</label></div></div>
-                    <div class="form-group"><label>Annual Income (ZAR)</label><input type="number" id="income" required placeholder="500000"></div>
-                    <div class="form-group"><label>Coverage Amount (ZAR)</label><div class="inline-group"><select id="coverage_preset"><option value="1000000">R1,000,000</option><option value="2000000">R2,000,000</option><option value="3000000">R3,000,000</option><option value="5000000">R5,000,000</option><option value="10000000">R10,000,000</option><option value="custom">Custom</option></select><input type="number" id="coverage_custom" placeholder="Enter amount" style="display:none"></div></div>
-                    <div class="form-group"><label>Term (Years)</label><div class="inline-group"><select id="term_preset"><option value="10">10</option><option value="15">15</option><option value="20" selected>20</option><option value="25">25</option><option value="30">30</option><option value="custom">Custom</option></select><input type="number" id="term_custom" placeholder="Enter years" style="display:none"></div></div>
-                    <div class="form-group"><label>Your Email</label><input type="email" id="email" required placeholder="broker@example.com"><small>First 5 reports free · No spam</small></div>
-                    <button type="submit" class="btn-primary" id="calculateBtn">Analyze Risk Profile →</button>
-                </form>
-                <div class="error" id="error"></div>
+
+                    <div class="form-group">
+                        <label>Position</label>
+                        <div class="position-toggle">
+                            <button class="pos-btn active-buy" id="buyBtn">📈 BUY</button>
+                            <button class="pos-btn" id="sellBtn">📉 SELL</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Account Size ($)</label>
+                        <input type="number" id="accountSize" value="10000">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Entry Price</label>
+                        <input type="number" step="0.00001" id="entryPrice" value="1.0850">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Stop Loss</label>
+                        <input type="number" step="0.00001" id="stopLoss" value="1.0820">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Take Profit (optional)</label>
+                        <input type="number" step="0.00001" id="takeProfit" value="1.0910">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Lot Size (optional)</label>
+                        <input type="number" step="0.01" id="lotSize" placeholder="Auto-calculated">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Confidence (1-10)</label>
+                        <input type="range" min="1" max="10" id="confidence" value="5">
+                        <div class="confidence-value" id="confidenceValue">5/10</div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Notes</label>
+                        <textarea id="notes" rows="3" placeholder="Trade setup notes..."></textarea>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn-analyze" id="analyzeBtn">🔍 Analyze Trade</button>
+                    <button class="btn-save" id="saveBtn">💾 Save to Journal</button>
+                </div>
+            </div>
+
+            <div id="analysisResult" style="display: none;"></div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content" style="display: none;">
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="totalTrades">0</div>
+                    <div class="stat-label">Total Trades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value" id="winRate">0%</div>
+                    <div class="stat-label">Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚖️</div>
+                    <div class="stat-value" id="avgRR">0:1</div>
+                    <div class="stat-label">Avg RR Ratio</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔥</div>
+                    <div class="stat-value" id="currentStreak">0</div>
+                    <div class="stat-label">Current Streak</div>
+                </div>
+            </div>
+
+            <div class="rules-compliance">
+                <h3>📈 Trading Discipline Score</h3>
+                <div class="discipline-meter">
+                    <div class="discipline-fill" id="disciplineFill" style="width: 0%"></div>
+                </div>
+                <p class="discipline-text">Based on win rate, RR ratio, and consistency</p>
+            </div>
+
+            <div id="fundedProtectionCard" style="display: none;" class="funded-protection-card">
+                <!-- Will be populated by JS -->
             </div>
         </div>
 
-        <div class="result-card" id="resultCard">
-            <div id="freeResult">
-                <div class="result-score">
-                    <div class="score-number" id="riskScore">—</div>
-                    <div class="score-label">Risk Score (0-100)</div>
-                    <div id="riskExplanation" style="margin-top: 8px; font-size: 13px; color: #5b6e8c;"></div>
-                </div>
-
-                <div class="result-section">
-                    <h4>📊 Risk Drivers</h4>
-                    <div id="driversContainer" class="drivers-list">Complete the form to see analysis</div>
-                </div>
-
-                <div class="result-section">
-                    <h4>💰 Premium Estimate</h4>
-                    <div id="premiumText">—</div>
-                    <div id="confidenceRange" style="font-size: 12px; color: #5b6e8c; margin-top: 4px;"></div>
-                </div>
-
-                <div class="result-section">
-                    <h4>🏦 Insurer Matching</h4>
-                    <div id="insurerText">—</div>
-                    <div id="insurerNote" style="font-size: 12px; color: #5b6e8c; margin-top: 4px;"></div>
-                </div>
-
-                <div class="result-section">
-                    <h4>📈 Coverage Ratio</h4>
-                    <div id="coverageRatio">—</div>
-                    <div id="coverageInterpretation" style="font-size: 12px; color: #5b6e8c; margin-top: 4px;"></div>
-                </div>
-
-                <div class="value-badge" id="valueBadge" style="display: none;">
-                    💰 <strong>Market Value: R500 - R1,500</strong><br>
-                    You're getting this analysis for only R49
-                </div>
-
-                <div class="paywall" id="paywall">
-                    <h3>🔓 Unlock Full Intelligence Report</h3>
-                    <p>Complete risk breakdown • Insurer matching • Confidence intervals • Actionable insights</p>
-                    <div class="paywall-price">R49</div>
-                    <button class="btn-pay" id="payBtn">Download Full Report →</button>
-                    <p style="font-size: 11px; margin-top: 12px;">One-time payment · Instant PDF</p>
+        <!-- Journal Tab -->
+        <div id="journalTab" class="tab-content" style="display: none;">
+            <h2>📔 Trade Journal</h2>
+            <div id="tradesList" class="trades-list">
+                <div class="empty-state">
+                    <p>No trades yet. Start your trading journey!</p>
                 </div>
             </div>
-            <div id="loadingResult" class="loading hidden">⏳ Analyzing risk profile...</div>
         </div>
-    </div>
 
-    <div class="footer"><p>Vettify PreCheck · Gompertz-Makeham Actuarial Model · First 5 reports free</p></div>
+        <!-- Rules Tab -->
+        <div id="rulesTab" class="tab-content" style="display: none;">
+            <div class="rules-container">
+                <div class="rules-form">
+                    <h2>⚙️ Your Trading Rules</h2>
+                    <div class="rule-item">
+                        <label>Max Daily Loss ($)</label>
+                        <input type="number" id="maxDailyLoss" value="1000">
+                        <small>Stop trading after reaching this loss</small>
+                    </div>
+
+                    <div class="rule-item">
+                        <label>Max Risk Per Trade (%)</label>
+                        <input type="number" step="0.5" id="maxRiskPerTrade" value="2">
+                        <small>Recommended: 1-2%</small>
+                    </div>
+
+                    <div class="rule-item">
+                        <label>Minimum RR Ratio</label>
+                        <input type="number" step="0.5" id="minRRRatio" value="1.5">
+                        <small>Risk-to-reward minimum requirement</small>
+                    </div>
+
+                    <div class="rule-item">
+                        <label>Max Trades Per Day</label>
+                        <input type="number" id="maxTradesPerDay" value="5">
+                        <small>Prevent overtrading</small>
+                    </div>
+
+                    <button class="btn-save-rules" id="saveRulesBtn">💾 Save Rules</button>
+                </div>
+
+                <div class="discipline-tips">
+                    <h4>💡 Professional Trading Tips</h4>
+                    <ul>
+                        <li>📉 Never risk more than 2% on a single trade</li>
+                        <li>🎯 Aim for minimum 1.5:1 Risk-Reward ratio</li>
+                        <li>📊 Keep a trading journal to identify patterns</li>
+                        <li>🧠 Take breaks after 3 consecutive losses</li>
+                        <li>🛡️ Protect funded accounts by following drawdown rules</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <script>
-        let currentFormData = null;
+        // Global variables
+        let currentTab = 'trade';
+        let fundedMode = false;
+        let currentAnalysis = null;
+        let userId = 'user_' + (localStorage.getItem('userId') || 'demo_' + Date.now());
+        let rules = {
+            max_daily_loss: 1000,
+            max_risk_per_trade: 2,
+            min_rr_ratio: 1.5,
+            max_trades_per_day: 5
+        };
 
-        const coveragePreset = document.getElementById('coverage_preset');
-        const coverageCustom = document.getElementById('coverage_custom');
-        const termPreset = document.getElementById('term_preset');
-        const termCustom = document.getElementById('term_custom');
+        localStorage.setItem('userId', userId);
 
-        coveragePreset.addEventListener('change', function() {
-            coverageCustom.style.display = this.value === 'custom' ? 'block' : 'none';
-        });
-        termPreset.addEventListener('change', function() {
-            termCustom.style.display = this.value === 'custom' ? 'block' : 'none';
-        });
+        // DOM Elements
+        const tradeForm = {
+            currencyPair: document.getElementById('currencyPair'),
+            accountSize: document.getElementById('accountSize'),
+            entryPrice: document.getElementById('entryPrice'),
+            stopLoss: document.getElementById('stopLoss'),
+            takeProfit: document.getElementById('takeProfit'),
+            lotSize: document.getElementById('lotSize'),
+            confidence: document.getElementById('confidence'),
+            notes: document.getElementById('notes')
+        };
 
-        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Initialize
+        async function init() {
+            setupEventListeners();
+            await loadRules();
+            await loadTrades();
+            setupConfidenceSlider();
+        }
 
-            const email = document.getElementById('email').value.trim();
-            if (!email) {
-                document.getElementById('error').textContent = 'Please enter your email';
-                document.getElementById('error').style.display = 'block';
-                return;
+        function setupEventListeners() {
+            // Tab switching
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+            });
+
+            // Position buttons
+            document.getElementById('buyBtn').addEventListener('click', () => setPosition('buy'));
+            document.getElementById('sellBtn').addEventListener('click', () => setPosition('sell'));
+
+            // Action buttons
+            document.getElementById('analyzeBtn').addEventListener('click', analyzeTrade);
+            document.getElementById('saveBtn').addEventListener('click', saveTrade);
+            document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
+            document.getElementById('fundedToggle').addEventListener('click', toggleFundedMode);
+        }
+
+        function setupConfidenceSlider() {
+            const confidence = document.getElementById('confidence');
+            const confidenceValue = document.getElementById('confidenceValue');
+            confidence.addEventListener('input', () => {
+                confidenceValue.textContent = confidence.value + '/10';
+            });
+        }
+
+        function setPosition(position) {
+            const buyBtn = document.getElementById('buyBtn');
+            const sellBtn = document.getElementById('sellBtn');
+            if (position === 'buy') {
+                buyBtn.classList.add('active-buy');
+                sellBtn.classList.remove('active-sell');
+            } else {
+                sellBtn.classList.add('active-sell');
+                buyBtn.classList.remove('active-buy');
             }
+        }
 
-            const btn = document.getElementById('calculateBtn');
-            const loading = document.getElementById('loadingResult');
-            const resultDiv = document.getElementById('freeResult');
-            const errorDiv = document.getElementById('error');
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(`${tab}Tab`).style.display = 'block';
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.tab === tab) {
+                    btn.classList.add('active');
+                }
+            });
 
-            btn.disabled = true;
-            btn.textContent = 'Analyzing...';
-            loading.classList.remove('hidden');
-            resultDiv.classList.add('hidden');
-            errorDiv.style.display = 'none';
-
-            const termYears = termPreset.value === 'custom' ? parseInt(termCustom.value) : parseInt(termPreset.value);
-            const coverageAmount = coveragePreset.value === 'custom' ? parseInt(coverageCustom.value) : parseInt(coveragePreset.value);
-            const age = parseInt(document.getElementById('age').value);
-            const income = parseInt(document.getElementById('income').value);
-
-            if (age < 18 || age > 80) {
-                errorDiv.textContent = 'Age must be between 18 and 80';
-                errorDiv.style.display = 'block';
-                btn.disabled = false;
-                btn.textContent = 'Analyze Risk Profile →';
-                loading.classList.add('hidden');
-                return;
+            if (tab === 'dashboard') {
+                updateDashboard();
+            } else if (tab === 'journal') {
+                loadTrades();
             }
+        }
 
-            const formData = {
-                age: age,
-                gender: document.getElementById('gender').value,
-                smoker: document.querySelector('input[name="smoker"]:checked').value === 'yes',
-                income: income,
-                coverage: coverageAmount,
-                term: termYears,
-                email: email
+        async function analyzeTrade() {
+            const tradeData = {
+                currency_pair: tradeForm.currencyPair.value,
+                position_type: document.getElementById('buyBtn').classList.contains('active-buy') ? 'buy' : 'sell',
+                account_size: parseFloat(tradeForm.accountSize.value),
+                entry_price: parseFloat(tradeForm.entryPrice.value),
+                stop_loss: parseFloat(tradeForm.stopLoss.value),
+                take_profit: parseFloat(tradeForm.takeProfit.value) || null,
+                lot_size: parseFloat(tradeForm.lotSize.value) || null,
+                confidence: parseInt(document.getElementById('confidence').value),
+                notes: tradeForm.notes.value,
+                user_id: userId
             };
-            currentFormData = formData;
 
             try {
-                const res = await fetch('/calculate', {
+                const response = await fetch('/api/analyze-trade', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(tradeData)
                 });
-                const data = await res.json();
-
-                if (data.error) {
-                    errorDiv.textContent = data.error;
-                    errorDiv.style.display = 'block';
-                    btn.disabled = false;
-                    btn.textContent = 'Analyze Risk Profile →';
-                    loading.classList.add('hidden');
-                    return;
-                }
-
-                // Risk Score
-                document.getElementById('riskScore').innerHTML = data.risk.score;
-                let riskColor = data.risk.score >= 70 ? '#16a34a' : (data.risk.score >= 40 ? '#ea580c' : '#dc2626');
-                document.getElementById('riskScore').style.color = riskColor;
-                document.getElementById('riskExplanation').innerHTML = data.underwriting.risk_explanation;
-
-                // Drivers
-                let driversHtml = '';
-                for (let d of data.risk.drivers) {
-                    let impactClass = d.impact < 0 ? 'driver-impact-neg' : (d.impact > 0 ? 'driver-impact-pos' : '');
-                    driversHtml += `<div class="driver-item">
-                        <span>${d.factor}</span>
-                        <span class="${impactClass}">${d.impact > 0 ? '+' : ''}${d.impact}</span>
-                    </div>`;
-                    driversHtml += `<div style="font-size: 11px; color: #5b6e8c; margin-top: -8px; margin-bottom: 8px;">${d.explanation}</div>`;
-                }
-                document.getElementById('driversContainer').innerHTML = driversHtml || 'No significant risk factors identified';
-
-                // Premium
-                document.getElementById('premiumText').innerHTML = `<div class="premium-box"><span class="premium-amount">R${data.premium} - R${Math.round(data.premium * 1.12)}</span><br><small>per month</small></div>`;
-                document.getElementById('confidenceRange').innerHTML = `📊 Confidence: ${data.underwriting.confidence_range.confidence} (R${data.underwriting.confidence_range.low} - R${data.underwriting.confidence_range.high})`;
-
-                // Insurers
-                document.getElementById('insurerText').innerHTML = data.insurers.join(', ');
-                document.getElementById('insurerNote').innerHTML = data.insurer_note;
-
-                // Coverage Ratio
-                document.getElementById('coverageRatio').innerHTML = data.underwriting.coverage_ratio;
-                document.getElementById('coverageInterpretation').innerHTML = data.underwriting.coverage_interpretation;
-
-                document.getElementById('valueBadge').style.display = 'block';
-                resultDiv.classList.remove('hidden');
-                btn.disabled = false;
-                btn.textContent = 'Analyze Risk Profile →';
-                loading.classList.add('hidden');
-
-            } catch(err) {
-                errorDiv.textContent = 'Error analyzing. Please try again.';
-                errorDiv.style.display = 'block';
-                btn.disabled = false;
-                btn.textContent = 'Analyze Risk Profile →';
-                loading.classList.add('hidden');
+                const data = await response.json();
+                currentAnalysis = data;
+                displayAnalysis(data);
+            } catch (error) {
+                console.error('Error analyzing trade:', error);
+                alert('Error analyzing trade. Please try again.');
             }
-        });
+        }
 
-        document.getElementById('payBtn').addEventListener('click', async () => {
-            if (!currentFormData) {
-                alert('Please calculate a risk profile first');
+        function displayAnalysis(data) {
+            const analysisDiv = document.getElementById('analysisResult');
+            const passStatus = data.pass_status;
+            
+            analysisDiv.innerHTML = `
+                <div class="analysis-card ${passStatus ? 'pass' : 'fail'}">
+                    <div class="analysis-header">
+                        <h3>🤖 AI Risk Analysis</h3>
+                        <div class="status-badge ${passStatus ? 'pass' : 'fail'}">
+                            ${passStatus ? '✓ RULES PASS' : '✗ RULES FAIL'}
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Risk %</span>
+                            <span class="metric-value ${data.risk_metrics?.risk_percent > rules.max_risk_per_trade ? 'danger' : 'success'}">
+                                ${data.risk_metrics?.risk_percent}%
+                            </span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">RR Ratio</span>
+                            <span class="metric-value ${data.rr_ratio >= rules.min_rr_ratio ? 'success' : 'danger'}">
+                                ${data.rr_ratio || '∞'}:1
+                            </span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Lot Size</span>
+                            <span class="metric-value">${data.risk_metrics?.recommended_lot_size}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Potential Loss</span>
+                            <span class="metric-value danger">$${data.risk_metrics?.potential_loss}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-feedback">
+                        <div class="feedback-icon">🤖</div>
+                        <div class="feedback-text">${data.ai_feedback}</div>
+                    </div>
+                    
+                    ${data.warnings && data.warnings.length > 0 ? `
+                        <div class="warnings-list">
+                            ${data.warnings.map(w => `<div class="warning-item">⚠️ ${w}</div>`).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    ${fundedMode && !passStatus ? `
+                        <div class="funded-warning">
+                            🛡️ FUNDED ACCOUNT PROTECTION: This trade would risk your prop firm challenge/drawdown limit.
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            analysisDiv.style.display = 'block';
+        }
+
+        async function saveTrade() {
+            if (!currentAnalysis) {
+                alert('Please analyze the trade first');
                 return;
             }
 
-            const btn = document.getElementById('payBtn');
-            btn.textContent = 'Generating...';
-            btn.disabled = true;
+            const tradeData = {
+                currency_pair: tradeForm.currencyPair.value,
+                position_type: document.getElementById('buyBtn').classList.contains('active-buy') ? 'buy' : 'sell',
+                account_size: parseFloat(tradeForm.accountSize.value),
+                entry_price: parseFloat(tradeForm.entryPrice.value),
+                stop_loss: parseFloat(tradeForm.stopLoss.value),
+                take_profit: parseFloat(tradeForm.takeProfit.value) || null,
+                lot_size: parseFloat(tradeForm.lotSize.value) || null,
+                confidence: parseInt(document.getElementById('confidence').value),
+                notes: tradeForm.notes.value,
+                user_id: userId
+            };
 
             try {
-                const res = await fetch('/generate-report', {
+                const response = await fetch('/api/save-trade', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentFormData)
+                    body: JSON.stringify(tradeData)
                 });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || 'Failed');
+                const data = await response.json();
+                if (data.success) {
+                    alert('Trade saved successfully!');
+                    await loadTrades();
+                    switchTab('journal');
+                    resetTradeForm();
+                } else {
+                    alert('Error saving trade: ' + data.error);
                 }
-
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `vettify_report_${currentFormData.age}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
-
-                alert('✅ Report downloaded! Check your downloads folder.');
-                btn.textContent = 'Download Full Report →';
-                btn.disabled = false;
-
-            } catch(err) {
-                alert('Error: ' + err.message);
-                btn.textContent = 'Download Full Report →';
-                btn.disabled = false;
+            } catch (error) {
+                console.error('Error saving trade:', error);
+                alert('Error saving trade');
             }
-        });
-    </script>
-</body>
-</html>
+        }
+
+        async function loadTrades() {
+            try {
+                const response = await fetch(`/api/get-trades?user_id=${userId}`);
+                const data = await response.json();
+                displayTrades(data.trades || []);
+                updateStats(data.stats || {});
+            } catch (error) {
+                console.error('Error loading trades:', error);
+            }
+        }
+
+        function displayTrades(trades) {
+            const tradesList = document.getElementById('tradesList');
+            if (trades.length === 0) {
+                tradesList.innerHTML = '<div class="empty-state"><p>No trades yet. Start your trading journey!</p></div>';
+                return;
+            }
+
+            tradesList.innerHTML = trades.map(trade => `
+                <div class="trade-card">
+                    <div class="trade-header">
+                        <div>
+                            <span class="trade-pair">${trade.currency_pair}</span>
+                            <span class="trade-type ${trade.position_type}">
+                                ${trade.position_type === 'buy' ? '📈 BUY' : '📉 SELL'}
+                            </span>
+                        </div>
+                        <div class="trade-date">${new Date(trade.date).toLocaleDateString()}</div>
+                    </div>
+                    
+                    <div class="trade-details">
+                        <div>Entry: ${trade.entry_price}</div>
